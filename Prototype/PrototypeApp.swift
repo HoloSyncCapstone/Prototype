@@ -1,33 +1,22 @@
-//
-//  PrototypeApp.swift
-//  Prototype
-//
-//  Created by Patron on 9/29/25.
-//
-
 import SwiftUI
 
 @main
 struct PrototypeApp: App {
-
-    @State private var appModel = AppModel()
-
+    @StateObject private var viewModel = ViewModel()
+    @State private var currentImmersionStyle: ImmersionStyle = .full
+    
     var body: some Scene {
+        // Main window for content
         WindowGroup {
             ContentView()
-                .environment(appModel)
+                .environmentObject(viewModel)
         }
-
-        ImmersiveSpace(id: appModel.immersiveSpaceID) {
+        
+        // Immersive space for 3D content
+        ImmersiveSpace(id: "TrainingSpace") {
             ImmersiveView()
-                .environment(appModel)
-                .onAppear {
-                    appModel.immersiveSpaceState = .open
-                }
-                .onDisappear {
-                    appModel.immersiveSpaceState = .closed
-                }
+                .environmentObject(viewModel)
         }
-        .immersionStyle(selection: .constant(.full), in: .full)
+        .immersionStyle(selection: $currentImmersionStyle, in: .progressive, .full)
     }
 }
