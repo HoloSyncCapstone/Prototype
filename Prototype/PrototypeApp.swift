@@ -3,7 +3,7 @@ import SwiftUI
 @main
 struct PrototypeApp: App {
     @StateObject private var viewModel = ViewModel()
-    @State private var currentImmersionStyle: ImmersionStyle = .full
+    @State private var currentImmersionStyle: ImmersionStyle = .mixed
     
     var body: some Scene {
         // Main window for content
@@ -17,6 +17,6 @@ struct PrototypeApp: App {
             ImmersiveView()
                 .environmentObject(viewModel)
         }
-        .immersionStyle(selection: $currentImmersionStyle, in: .progressive, .full)
+        .immersionStyle(selection: $currentImmersionStyle, in: .mixed)
     }
 }
