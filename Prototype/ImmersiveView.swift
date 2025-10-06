@@ -1,4 +1,4 @@
-// ImmersiveView.swift (Integrated Version)
+// ImmersiveView.swift (Updated with better UI positioning)
 import SwiftUI
 import RealityKit
 import simd
@@ -22,51 +22,51 @@ struct ImmersiveView: View {
     @State private var jointIndices: [String: Int] = [:]
     
     var body: some View {
-        ZStack {
-            // Reality content
-            RealityView { content in
-                do {
-                    let model = try await ModelEntity(named: "lowpoly")
-                    model.position = [0, 1.2, -2]
-                    let bounds = model.visualBounds(relativeTo: nil)
-                    let bottomY = bounds.center.y - bounds.extents.y / 2
-                    let scaleY = model.scale.y
-                    model.position.y = -bottomY * scaleY
-                    
-                    model.scale = [0.015,0.015,0.015]
-                    
-                    // --- LIGHTING: Add a directional light pointing at the human ---
-                    let lightEntity = DirectionalLight()
-                    // Place the light above and in front of the model
-                    lightEntity.position = SIMD3<Float>(20,20,20)
-                    // Point the light towards the model's position
-                    lightEntity.look(at: model.position, from: lightEntity.position, relativeTo: nil)
-                    lightEntity.light.intensity = 5000 // Adjust intensity as needed
-                    content.add(lightEntity)
-                    
-                    // --- END LIGHTING ---
-                    
-                    content.add(model)
-                    
-                    // Store model reference
-                    self.modelEntity = model
-                    
-                    // Setup animation after a small delay to ensure the scene is ready
-                    Task {
-                        try await Task.sleep(nanoseconds: 100_000_000) // 0.1s
-                        await setupAnimation(model: model)
-                    }
-                    
-                } catch {
-                    print("Failed to load model: \(error)")
+        RealityView { content, attachments in
+            do {
+                let model = try await ModelEntity(named: "lowpoly")
+                model.position = [0, 1.2, -2]
+                let bounds = model.visualBounds(relativeTo: nil)
+                let bottomY = bounds.center.y - bounds.extents.y / 2
+                let scaleY = model.scale.y
+                model.position.y = -bottomY * scaleY
+                
+                model.scale = [0.015,0.015,0.015]
+                
+                // --- LIGHTING: Add a directional light pointing at the human ---
+                let lightEntity = DirectionalLight()
+                // Place the light above and in front of the model
+                lightEntity.position = SIMD3<Float>(20,20,20)
+                // Point the light towards the model's position
+                lightEntity.look(at: model.position, from: lightEntity.position, relativeTo: nil)
+                lightEntity.light.intensity = 5000 // Adjust intensity as needed
+                content.add(lightEntity)
+                
+                // --- END LIGHTING ---
+                
+                content.add(model)
+                
+                // Add the controls attachment positioned to the right of the model
+                if let controlsEntity = attachments.entity(for: "controls") {
+                    controlsEntity.position = [0.8, 1.2, -2] // Position to the right of the model
+                    content.add(controlsEntity)
                 }
+                
+                // Store model reference
+                self.modelEntity = model
+                
+                // Setup animation after a small delay to ensure the scene is ready
+                Task {
+                    try await Task.sleep(nanoseconds: 100_000_000) // 0.1s
+                    await setupAnimation(model: model)
+                }
+                
+            } catch {
+                print("Failed to load model: \(error)")
             }
-            
-            // UI overlay
-            VStack {
-                Spacer()
+        } attachments: {
+            Attachment(id: "controls") {
                 PlaybackControlsView()
-                    .offset(x: -10, y: 50)
             }
         }
     }
@@ -244,4 +244,3 @@ var animationKeyframes: [Keyframe] = [
         rightThumb2Name: Transform(rotation: simd_quatf(angle: 0.0, axis: [-1,0,0])),
     ]))
 ]
-
