@@ -5,6 +5,7 @@ struct ContentView: View {
     @EnvironmentObject var viewModel: ViewModel
     @Environment(\.openImmersiveSpace) private var openImmersiveSpace
     @Environment(\.dismissImmersiveSpace) private var dismissImmersiveSpace
+    @Environment(\.dismissWindow) private var dismissWindow
     @State private var isShowingImmersiveSpace = false
     @State private var immersiveSpaceState: ImmersiveSpaceState = .closed
     
@@ -87,30 +88,29 @@ struct ContentView: View {
         
         immersiveSpaceState = .inTransition
         
-        do {
-            let result = await openImmersiveSpace(id: "TrainingSpace")
-            switch result {
-            case .opened:
-                immersiveSpaceState = .open
-                isShowingImmersiveSpace = true
-            case .error:
-                immersiveSpaceState = .closed
-                viewModel.closeSession()
-                print("Failed to open immersive space")
-            case .userCancelled:
-                immersiveSpaceState = .closed
-                viewModel.closeSession()
-                print("User cancelled opening immersive space")
-            @unknown default:
-                immersiveSpaceState = .closed
-                viewModel.closeSession()
-            }
+        let result = await openImmersiveSpace(id: "TrainingSpace")
+        switch result {
+        case .opened:
+            immersiveSpaceState = .open
+            isShowingImmersiveSpace = true
+            // Dismiss this window after immersive space opens
+            dismissWindow(id: "main")
+        case .error:
+            immersiveSpaceState = .closed
+            viewModel.closeSession()
+            print("Failed to open immersive space")
+        case .userCancelled:
+            immersiveSpaceState = .closed
+            viewModel.closeSession()
+            print("User cancelled opening immersive space")
+        @unknown default:
+            immersiveSpaceState = .closed
+            viewModel.closeSession()
         }
     }
     
     private func closeSpace() async {
-        guard immersiveSpaceState == .open else { return }
-        
+        // Remove the guard to always attempt to close
         immersiveSpaceState = .inTransition
         
         await dismissImmersiveSpace()

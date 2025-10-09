@@ -2,49 +2,56 @@ import SwiftUI
 
 struct PlaybackControlsView: View {
     @EnvironmentObject var viewModel: ViewModel
+    @Environment(\.openWindow) private var openWindow
     @Environment(\.dismissImmersiveSpace) private var dismissImmersiveSpace
     
     var body: some View {
-        VStack(spacing: 20) {
-            // Header
+        VStack(spacing: 24) {
+            // Header with exit button
             HStack {
-                VStack(alignment: .leading) {
+                VStack(alignment: .leading, spacing: 4) {
                     if let session = viewModel.selectedSession {
                         Text(session.name)
-                            .font(.title2)
-                            .fontWeight(.semibold)
+                            .font(.system(size: 28, weight: .semibold))
                         Text(session.description)
-                            .font(.caption)
+                            .font(.system(size: 16))
                             .foregroundStyle(.secondary)
                     }
                 }
                 
                 Spacer()
                 
-                // Close button
+                // Exit to menu button
                 Button {
                     Task {
-                        viewModel.closeSession()
+                        await exitToMenu()
                     }
                 } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.title2)
-                        .symbolRenderingMode(.hierarchical)
-                        .foregroundStyle(.secondary)
+                    HStack(spacing: 8) {
+                        Image(systemName: "arrow.left")
+                            .font(.system(size: 18, weight: .medium))
+                        Text("Exit")
+                            .font(.system(size: 18, weight: .semibold))
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 12)
+                    .background(.blue.gradient)
+                    .foregroundStyle(.white)
+                    .clipShape(Capsule())
                 }
-                .buttonBorderShape(.circle)
+                .buttonBorderShape(.capsule)
             }
             
             // Time display
             HStack {
                 Text(formatTime(viewModel.currentTime))
-                    .font(.caption)
+                    .font(.system(size: 18, weight: .medium))
                     .monospacedDigit()
                 
                 Spacer()
                 
                 Text(formatTime(viewModel.totalTime))
-                    .font(.caption)
+                    .font(.system(size: 18, weight: .medium))
                     .monospacedDigit()
                     .foregroundStyle(.secondary)
             }
@@ -60,13 +67,13 @@ struct PlaybackControlsView: View {
             .tint(.blue)
             
             // Control buttons
-            HStack(spacing: 20) {
+            HStack(spacing: 28) {
                 // Rewind button
                 Button {
                     viewModel.rewind()
                 } label: {
                     Image(systemName: "backward.fill")
-                        .font(.title2)
+                        .font(.system(size: 32))
                 }
                 .buttonBorderShape(.circle)
                 
@@ -75,8 +82,8 @@ struct PlaybackControlsView: View {
                     viewModel.togglePlayback()
                 } label: {
                     Image(systemName: viewModel.isPlaying ? "pause.fill" : "play.fill")
-                        .font(.largeTitle)
-                        .frame(width: 60, height: 60)
+                        .font(.system(size: 42))
+                        .frame(width: 80, height: 80)
                         .background(.blue.gradient)
                         .foregroundStyle(.white)
                         .clipShape(Circle())
@@ -87,13 +94,12 @@ struct PlaybackControlsView: View {
                 Button {
                     viewModel.toggleSlowMotion()
                 } label: {
-                    VStack(spacing: 2) {
+                    VStack(spacing: 4) {
                         Image(systemName: "slowmo")
-                            .font(.title3)
+                            .font(.system(size: 28))
                         if viewModel.isSlowMotion {
                             Text("0.25x")
-                                .font(.caption2)
-                                .fontWeight(.semibold)
+                                .font(.system(size: 14, weight: .semibold))
                         }
                     }
                     .foregroundStyle(viewModel.isSlowMotion ? .blue : .primary)
@@ -104,16 +110,25 @@ struct PlaybackControlsView: View {
             // Speed indicator
             if viewModel.isSlowMotion {
                 Label("Slow Motion Active", systemImage: "info.circle")
-                    .font(.caption)
+                    .font(.system(size: 16))
                     .foregroundStyle(.blue)
-                    .padding(.horizontal)
-                    .padding(.vertical, 6)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
                     .background(.blue.opacity(0.1), in: Capsule())
             }
         }
-        .padding(30)
-        .frame(width: 400)
+        .padding(40)
+        .frame(width: 550)
         .glassBackgroundEffect()
+    }
+    
+    private func exitToMenu() async {
+        // Directly dismiss the immersive space
+        await dismissImmersiveSpace()
+        // Close the session
+        viewModel.closeSession()
+        // Reopen the main window
+        openWindow(id: "main")
     }
     
     private func formatTime(_ time: TimeInterval) -> String {
