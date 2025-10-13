@@ -1,54 +1,43 @@
-// ImmersiveView.swift - Integrated with Object & Device Pose
+// ImmersiveView.swift - Joint Point Cloud Visualization
 import SwiftUI
 import RealityKit
 import simd
 import Combine
 
 // MARK: - Data Structures
-struct Pose {
-    var transforms: [String: Transform]
-}
-
-struct Keyframe {
-    var time: TimeInterval
-    var pose: Pose
+struct HandJointSample {
+    let t: Double
+    let chirality: String // "left" or "right"
+    let joints: [String: SIMD3<Float>] // joint name -> position
 }
 
 // MARK: - Main View
 struct ImmersiveView: View {
     @EnvironmentObject var viewModel: ViewModel
     @State private var subscription: AnyCancellable?
-    @State private var modelEntity: ModelEntity?
-    @State private var jointIndices: [String: Int] = [:]
-    @State private var animationKeyframes: [Keyframe] = []
+    
+    // Joint visualization
+    @State private var handJointSamples: [HandJointSample] = []
+    @State private var jointSpheres: [String: ModelEntity] = [:] // joint name -> sphere entity
     
     // Object & Device tracking
     @State private var devicePoses: [PoseSample] = []
     @State private var objectPoses: [PoseSample] = []
     @State private var deviceEntity: ModelEntity?
-    @State private var objectEntities: [String: ModelEntity] = [:] // anchorID -> entity
-    @State private var objectRootEntity = ModelEntity()
+    @State private var objectEntities: [String: ModelEntity] = [:]
+
+    @State private var globalAnchorRotation: simd_quatf = simd_quatf()
+    @State private var globalAnchorPosition: SIMD3<Float> = .zero
     
     var body: some View {
         RealityView { content, attachments in
             do {
-                // Load avatar model
-                let model = try await ModelEntity(named: "lowpoly")
-                model.position = [0, 1.2, -2]
-                let bounds = model.visualBounds(relativeTo: nil)
-                let bottomY = bounds.center.y - bounds.extents.y / 2
-                let scaleY = model.scale.y
-                model.position.y = -bottomY * scaleY
-                model.scale = [0.015, 0.015, 0.015]
-                
                 // Lighting
                 let lightEntity = DirectionalLight()
                 lightEntity.position = SIMD3<Float>(20, 20, 20)
-                lightEntity.look(at: model.position, from: lightEntity.position, relativeTo: nil)
+                lightEntity.look(at: [0, 0, 0], from: lightEntity.position, relativeTo: nil)
                 lightEntity.light.intensity = 5000
                 content.add(lightEntity)
-                
-                content.add(model)
                 
                 // Add playback controls attachment
                 if let controlsEntity = attachments.entity(for: "controls") {
@@ -56,29 +45,47 @@ struct ImmersiveView: View {
                     content.add(controlsEntity)
                 }
                 
-                self.modelEntity = model
-                
-                // Create device cube (white)
-                let headsetBox = MeshResource.generateBox(size: [0.20, 0.08, 0.10])
+                // Create device cube (white) - make it bigger and visible
+                let headsetBox = MeshResource.generateBox(size: [0.15, 0.10, 0.12])
                 var headsetMat = PhysicallyBasedMaterial()
                 headsetMat.baseColor = .init(tint: .white)
+                headsetMat.emissiveColor = .init(color: .white)
+                headsetMat.emissiveIntensity = 1.0
                 let deviceCube = ModelEntity(mesh: headsetBox, materials: [headsetMat])
                 deviceCube.name = "deviceCube"
                 content.add(deviceCube)
                 self.deviceEntity = deviceCube
                 
-                // --- Prepare objectRootEntity for all object boxes
-                objectRootEntity.name = "objectRoot"
-                content.add(objectRootEntity)
+                // Create object entities - make them bigger and glowing
+                let uniqueAnchorIDs = Set(PoseCSVLoader.load(resource: "object_pose_data_4").compactMap { $0.anchorID })
+                print("📍 Found \(uniqueAnchorIDs.count) unique objects: \(uniqueAnchorIDs)")
+                for (index, anchorID) in uniqueAnchorIDs.enumerated() {
+                    let objectBox = MeshResource.generateBox(size: [0.08, 0.08, 0.08])
+                    var objectMat = PhysicallyBasedMaterial()
+                    
+                    let colors: [UIColor] = [.red, .green, .blue, .yellow, .cyan, .magenta, .orange]
+                    objectMat.baseColor = .init(tint: colors[index % colors.count])
+                    objectMat.emissiveColor = .init(color: colors[index % colors.count])
+                    objectMat.emissiveIntensity = 2.0
+                    
+                    let objectEntity = ModelEntity(mesh: objectBox, materials: [objectMat])
+                    objectEntity.name = "object_\(anchorID)"
+                    content.add(objectEntity)
+                    
+                    objectEntities[anchorID] = objectEntity
+                }
                 
-                // Setup animation from CSV (no more passing content)
+                // Create joint visualization spheres
+                createJointSpheres(content: content)
+                
+                // Setup animation from CSV
                 Task {
                     try await Task.sleep(nanoseconds: 100_000_000)
-                    await setupAnimationFromCSV(model: model)
+                    await setupAnimationFromCSV()
                 }
                 
             } catch {
-                print("Failed to load model: \(error)")
+                print("Failed to setup scene: \(error)")
             }
         } attachments: {
             Attachment(id: "controls") {
@@ -87,168 +94,289 @@ struct ImmersiveView: View {
         }
     }
     
-    private func easeInOutBack(_ t: Float) -> Float {
-        let c1: Float = 1.70158
-        let c2 = c1 * 1.525
+    // MARK: - Create Joint Spheres
+    private func createJointSpheres(content: RealityViewContent) {
+        // Define all hand joints we want to visualize
+        let jointNames = [
+            // Right hand
+            "right_wrist", "right_thumb_tip", "right_index_tip", "right_middle_tip",
+            "right_ring_tip", "right_pinky_tip",
+            "right_thumb_knuckle", "right_index_knuckle", "right_middle_knuckle",
+            "right_ring_knuckle", "right_pinky_knuckle",
+            // Left hand
+            "left_wrist", "left_thumb_tip", "left_index_tip", "left_middle_tip",
+            "left_ring_tip", "left_pinky_tip",
+            "left_thumb_knuckle", "left_index_knuckle", "left_middle_knuckle",
+            "left_ring_knuckle", "left_pinky_knuckle"
+        ]
         
-        if t < 0.5 {
-            return (pow(2 * t, 2) * ((c2 + 1) * 2 * t - c2)) / 2
-        } else {
-            return (pow(2 * t - 2, 2) * ((c2 + 1) * (t * 2 - 2) + c2) + 2) / 2
+        for jointName in jointNames {
+            let sphere = MeshResource.generateSphere(radius: 0.01)
+            var material = PhysicallyBasedMaterial()
+            
+            // Color code: right hand = blue, left hand = green
+            if jointName.contains("right") {
+                material.baseColor = .init(tint: .systemBlue)
+            } else {
+                material.baseColor = .init(tint: .systemGreen)
+            }
+            
+            // Wrists and tips are brighter and larger
+            if jointName.contains("wrist") {
+                material.emissiveColor = .init(color: jointName.contains("right") ? .blue : .green)
+                material.emissiveIntensity = 3.0
+                let largeSphere = MeshResource.generateSphere(radius: 0.015) // Larger wrist
+                let sphereEntity = ModelEntity(mesh: largeSphere, materials: [material])
+                sphereEntity.name = jointName
+                content.add(sphereEntity)
+                jointSpheres[jointName] = sphereEntity
+            } else if jointName.contains("tip") {
+                material.emissiveIntensity = 2.0
+                let sphereEntity = ModelEntity(mesh: sphere, materials: [material])
+                sphereEntity.name = jointName
+                content.add(sphereEntity)
+                jointSpheres[jointName] = sphereEntity
+            } else {
+                let sphereEntity = ModelEntity(mesh: sphere, materials: [material])
+                sphereEntity.name = jointName
+                content.add(sphereEntity)
+                jointSpheres[jointName] = sphereEntity
+            }
         }
+        
+        print("✅ Created \(jointSpheres.count) joint visualization spheres")
     }
     
     @MainActor
-    private func setupAnimationFromCSV(model: ModelEntity) async {
+    private func setupAnimationFromCSV() async {
         do {
             // Load all three datasets
             print("📦 Loading datasets...")
             
-            devicePoses = PoseCSVLoader.load(resource: "device_pose_data")
+            devicePoses = PoseCSVLoader.load(resource: "device_pose_data_3")
             print("✅ Loaded \(devicePoses.count) device poses")
             
-            objectPoses = PoseCSVLoader.load(resource: "object_pose_data")
+            objectPoses = PoseCSVLoader.load(resource: "object_pose_data_4")
             print("✅ Loaded \(objectPoses.count) object poses")
             
-            animationKeyframes = try await CSVAnimationLoader.loadAnimation(from: "hand_data_pivoted")
-            print("✅ Loaded \(animationKeyframes.count) hand keyframes")
+            handJointSamples = try await loadHandJointData(from: "hand_data_pivoted")
+            print("✅ Loaded \(handJointSamples.count) hand joint samples")
             
-            // Create object entities for each unique anchorID (add as children of objectRootEntity)
-            let uniqueAnchorIDs = Set(objectPoses.compactMap { $0.anchorID })
-            print("📍 Found \(uniqueAnchorIDs.count) unique objects: \(uniqueAnchorIDs)")
-            
-            var newObjectEntities: [String: ModelEntity] = [:]
-            objectRootEntity.children.removeAll()
-            
-            for (index, anchorID) in uniqueAnchorIDs.enumerated() {
-                let objectBox = MeshResource.generateBox(size: [0.10, 0.10, 0.10])
-                var objectMat = PhysicallyBasedMaterial()
+            // === ESTABLISH GLOBAL ANCHOR ===
+            if let firstDevicePose = devicePoses.first {
+                globalAnchorPosition = firstDevicePose.p
+                globalAnchorRotation = firstDevicePose.q
+                print("🌐 Global anchor set at position: \(globalAnchorPosition)")
                 
-                // Different color for each object
-                let colors: [UIColor] = [.red, .green, .blue, .yellow, .cyan, .magenta, .orange]
-                objectMat.baseColor = .init(tint: colors[index % colors.count])
-                
-                let objectEntity = ModelEntity(mesh: objectBox, materials: [objectMat])
-                objectEntity.name = "object_\(anchorID)"
-                objectRootEntity.addChild(objectEntity)
-                
-                newObjectEntities[anchorID] = objectEntity
+                // Normalize all poses relative to this anchor
+                normalizeAllPosesToGlobalAnchor()
             }
             
-            objectEntities = newObjectEntities
-            
-            // Set total time based on last hand keyframe
-            if let lastKeyframe = animationKeyframes.last {
-                viewModel.totalTime = lastKeyframe.time
-                print("⏱️ Total animation time: \(lastKeyframe.time) seconds")
+            // Set total time
+            if let lastSample = handJointSamples.last {
+                viewModel.totalTime = lastSample.t
+                print("⏱️ Total animation time: \(lastSample.t) seconds")
             }
             
-            guard let scene = model.scene else {
-                print("ERROR: Scene not found on model. Retrying in 0.1s.")
-                Task {
-                    try await Task.sleep(nanoseconds: 100_000_000)
-                    await setupAnimationFromCSV(model: model)
-                }
-                return
-            }
+            // Start animation loop
+            startAnimationLoop()
             
-            // Build joint indices for hand animation
-            jointIndices.removeAll()
-            var startingPoseTransforms: [String: Transform] = [:]
+            print("🎬 Animation started successfully!")
             
-            for jointName in requiredJoints {
-                if let index = model.jointNames.firstIndex(of: jointName) {
-                    jointIndices[jointName] = index
-                    startingPoseTransforms[jointName] = model.jointTransforms[index]
-                }
-            }
-
-            // Merge starting pose with first keyframe if needed
-            if !animationKeyframes.isEmpty && animationKeyframes[0].time == 0 {
-                for (joint, transform) in startingPoseTransforms {
-                    if animationKeyframes[0].pose.transforms[joint] == nil {
-                        animationKeyframes[0].pose.transforms[joint] = transform
-                    }
+        } catch {
+            print("❌ Failed to load CSV animation: \(error)")
+        }
+    }
+    
+    // MARK: - Load Hand Joint Data
+    private func loadHandJointData(from filename: String) async throws -> [HandJointSample] {
+        guard let url = Bundle.main.url(forResource: filename, withExtension: "csv"),
+              let csvData = try? String(contentsOf: url, encoding: .utf8) else {
+            throw NSError(domain: "CSV", code: 404, userInfo: [NSLocalizedDescriptionKey: "File not found"])
+        }
+        
+        let rows = csvData.components(separatedBy: .newlines).map { $0.components(separatedBy: ",") }
+        guard rows.count > 1 else { throw NSError(domain: "CSV", code: 400, userInfo: nil) }
+        
+        let headers = rows[0].map { $0.trimmingCharacters(in: .whitespaces) }
+        var samples: [HandJointSample] = []
+        
+        let samplingRate = 2  // Reduced from 5 to 2 for smoother/faster animation
+        
+        for (index, row) in rows.dropFirst().enumerated() {
+            guard index % samplingRate == 0, row.count > 2 else { continue }
+            
+            var rowData: [String: String] = [:]
+            for (i, header) in headers.enumerated() {
+                if i < row.count {
+                    rowData[header] = row[i]
                 }
             }
             
-            // Subscribe to scene updates
-            self.subscription = scene.subscribe(to: SceneEvents.Update.self) { event in
-                self.viewModel.updateTime(event.deltaTime)
+            guard let timeString = rowData["t_mono"],
+                  let time = Double(timeString),
+                  let chirality = rowData["chirality"]?.trimmingCharacters(in: .whitespaces).lowercased() else {
+                continue
+            }
+            
+            // Extract joint positions
+            var joints: [String: SIMD3<Float>] = [:]
+            
+            // Key joints to extract
+            let jointPrefixes = ["forearmWrist", "thumbTip", "indexFingerTip", "middleFingerTip",
+                                "ringFingerTip", "littleFingerTip",
+                                "thumbKnuckle", "indexFingerKnuckle", "middleFingerKnuckle",
+                                "ringFingerKnuckle", "littleFingerKnuckle"]
+            
+            for prefix in jointPrefixes {
+                if let px = Float(rowData["\(prefix)_px"] ?? ""),
+                   let py = Float(rowData["\(prefix)_py"] ?? ""),
+                   let pz = Float(rowData["\(prefix)_pz"] ?? "") {
+                    let position = SIMD3<Float>(px, py, pz)
+                    
+                    // Map to our sphere names
+                    var simpleName = prefix
+                        .replacingOccurrences(of: "forearmWrist", with: "wrist")
+                        .replacingOccurrences(of: "Finger", with: "")
+                        .replacingOccurrences(of: "Tip", with: "_tip")
+                        .replacingOccurrences(of: "Knuckle", with: "_knuckle")
+                        .replacingOccurrences(of: "little", with: "pinky")
+                        .lowercased()
+                    
+                    joints["\(chirality)_\(simpleName)"] = position
+                }
+            }
+            
+            samples.append(HandJointSample(t: time, chirality: chirality, joints: joints))
+        }
+        
+        // Normalize times
+        if let firstTime = samples.first?.t {
+            samples = samples.map {
+                HandJointSample(t: $0.t - firstTime, chirality: $0.chirality, joints: $0.joints)
+            }
+        }
+        
+        return samples
+    }
+    
+    // MARK: - Start Animation Loop
+    private func startAnimationLoop() {
+        Timer.scheduledTimer(withTimeInterval: 1.0/60.0, repeats: true) { timer in
+            Task { @MainActor in
+                if !self.viewModel.isPlaying {
+                    return
+                }
+                
+                self.viewModel.updateTime(1.0/60.0)
                 let currentTime = self.viewModel.currentTime
                 
-                // ========== UPDATE HAND ANIMATION ==========
-                guard let (prevKeyframe, nextKeyframe) = self.findKeyframes(for: currentTime) else { return }
-                
-                let timeInRange = currentTime - prevKeyframe.time
-                let rangeDuration = nextKeyframe.time - prevKeyframe.time
-                let linearT = rangeDuration > 0 ? Float(timeInRange / rangeDuration) : 0
-                let easedT = self.easeInOutBack(linearT)
-                
-                // Apply interpolated transforms to avatar
-                for (jointName, jointIndex) in self.jointIndices {
-                    guard let prevTransform = prevKeyframe.pose.transforms[jointName],
-                          let nextTransform = nextKeyframe.pose.transforms[jointName] else { continue }
-                    
-                    let interpolatedRotation = simd_slerp(prevTransform.rotation, nextTransform.rotation, easedT)
-                    
-                    var newTransform = model.jointTransforms[jointIndex]
-                    newTransform.rotation = interpolatedRotation
-                    
-                    model.jointTransforms[jointIndex] = newTransform
-                }
-                
-                // ========== UPDATE DEVICE POSE ==========
+                // Update device
                 if let devicePose = self.interpolatePose(from: self.devicePoses, at: currentTime) {
                     self.deviceEntity?.transform = Transform(
                         scale: [1, 1, 1],
                         rotation: devicePose.q,
                         translation: devicePose.p
                     )
-                }
-                
-                // ========== UPDATE OBJECT POSES ==========
-                // Get current device pose for relative positioning
-                guard let currentDevicePose = self.interpolatePose(from: self.devicePoses, at: currentTime) else { return }
-                
-                // Group object poses by anchorID and update each
-                for (anchorID, entity) in self.objectEntities {
-                    // Filter poses for this specific object
-                    let objectPosesForAnchor = self.objectPoses.filter { $0.anchorID == anchorID }
                     
-                    if let objectPose = self.interpolatePose(from: objectPosesForAnchor, at: currentTime) {
-                        // Position object relative to device
-                        let relativePosition = self.transformToDeviceSpace(
-                            worldPosition: objectPose.p,
-                            worldRotation: objectPose.q,
-                            devicePose: currentDevicePose
-                        )
-                        
-                        entity.transform = Transform(
-                            scale: [1, 1, 1],
-                            rotation: relativePosition.rotation,
-                            translation: relativePosition.position
-                        )
+                    // Debug log every 60 frames (once per second)
+                    if Int(currentTime * 60) % 60 == 0 {
+                        print("🎯 t=\(String(format: "%.2f", currentTime)) | Device: \(devicePose.p)")
                     }
                 }
                 
-            } as! AnyCancellable
-            
-            print("🎬 Animation started successfully!")
-            
-        } catch {
-            print("❌ Failed to load CSV animation: \(error)")
-            print("⚠️ Falling back to hardcoded animation")
-            animationKeyframes = getHardcodedKeyframes()
-            await setupAnimationWithKeyframes(model: model)
+                // Update objects - use absolute positions (already normalized)
+                for (anchorID, entity) in self.objectEntities {
+                    let objectPosesForAnchor = self.objectPoses.filter { $0.anchorID == anchorID }
+                    
+                    if let objectPose = self.interpolatePose(from: objectPosesForAnchor, at: currentTime) {
+                        // Objects are already normalized to global anchor, use directly
+                        entity.position = objectPose.p
+                        entity.orientation = objectPose.q
+                        
+                        // Debug log once per second
+                        if Int(currentTime * 60) % 60 == 0 {
+                            print("📦 Object: \(objectPose.p)")
+                        }
+                    }
+                }
+                
+                // Update hand joints - Try using RAW positions without normalization
+                if let jointSample = self.interpolateHandJoints(at: currentTime) {
+                    for (jointName, position) in jointSample.joints {
+                        if let sphere = self.jointSpheres[jointName] {
+                            // OPTION 1: Use raw position (no normalization)
+                            sphere.position = position
+                            
+                            // Debug log wrist positions once per second
+                            if jointName.contains("wrist") && Int(currentTime * 60) % 60 == 0 {
+                                print("✋ \(jointName) RAW: \(position)")
+                            }
+                        }
+                    }
+                }
+            }
         }
+    }
+    
+    // MARK: - Interpolate Hand Joints
+    private func interpolateHandJoints(at time: TimeInterval) -> HandJointSample? {
+        guard !handJointSamples.isEmpty else { return nil }
+        
+        var prevSample = handJointSamples.first!
+        var nextSample = handJointSamples.first!
+        
+        for i in 0..<handJointSamples.count {
+            if handJointSamples[i].t <= time {
+                prevSample = handJointSamples[i]
+            }
+            if handJointSamples[i].t >= time {
+                nextSample = handJointSamples[i]
+                break
+            }
+        }
+        
+        if prevSample.t == nextSample.t {
+            return prevSample
+        }
+        
+        let t = Float((time - prevSample.t) / (nextSample.t - prevSample.t))
+        var interpolatedJoints: [String: SIMD3<Float>] = [:]
+        
+        for (jointName, prevPos) in prevSample.joints {
+            if let nextPos = nextSample.joints[jointName] {
+                interpolatedJoints[jointName] = prevPos + (nextPos - prevPos) * t
+            }
+        }
+        
+        return HandJointSample(t: time, chirality: prevSample.chirality, joints: interpolatedJoints)
+    }
+    
+    // MARK: - Global Anchor Normalization
+    private func normalizeAllPosesToGlobalAnchor() {
+        let anchorInverse = simd_inverse(globalAnchorRotation)
+        
+        // Normalize device poses
+        devicePoses = devicePoses.map { pose in
+            let relativePos = anchorInverse.act(pose.p - globalAnchorPosition)
+            let relativeRot = anchorInverse * pose.q
+            return PoseSample(t: pose.t, p: relativePos, q: relativeRot, anchorID: pose.anchorID)
+        }
+        
+        // Normalize object poses
+        objectPoses = objectPoses.map { pose in
+            let relativePos = anchorInverse.act(pose.p - globalAnchorPosition)
+            let relativeRot = anchorInverse * pose.q
+            return PoseSample(t: pose.t, p: relativePos, q: relativeRot, anchorID: pose.anchorID)
+        }
+        
+        print("✅ All poses normalized to global anchor")
     }
     
     // MARK: - Pose Interpolation
     private func interpolatePose(from poses: [PoseSample], at time: TimeInterval) -> PoseSample? {
         guard !poses.isEmpty else { return nil }
         
-        // Find surrounding poses
         var prevPose = poses.first!
         var nextPose = poses.first!
         
@@ -262,12 +390,10 @@ struct ImmersiveView: View {
             }
         }
         
-        // If exact match or at boundaries
         if prevPose.t == nextPose.t {
             return prevPose
         }
         
-        // Linear interpolation
         let t = Float((time - prevPose.t) / (nextPose.t - prevPose.t))
         let interpPosition = prevPose.p + (nextPose.p - prevPose.p) * t
         let interpRotation = simd_slerp(prevPose.q, nextPose.q, t)
@@ -279,127 +405,4 @@ struct ImmersiveView: View {
             anchorID: prevPose.anchorID
         )
     }
-    
-    // MARK: - Transform to Device-Relative Space
-    private func transformToDeviceSpace(
-        worldPosition: SIMD3<Float>,
-        worldRotation: simd_quatf,
-        devicePose: PoseSample
-    ) -> (position: SIMD3<Float>, rotation: simd_quatf) {
-        // Transform object from world space to device-relative space
-        
-        // 1. Compute relative position
-        let relativePosition = worldPosition - devicePose.p
-        
-        // 2. Rotate relative position by inverse of device rotation
-        let deviceRotationInverse = simd_inverse(devicePose.q)
-        let rotatedRelativePosition = deviceRotationInverse.act(relativePosition)
-        
-        // 3. Compute relative rotation
-        let relativeRotation = deviceRotationInverse * worldRotation
-        
-        return (rotatedRelativePosition, relativeRotation)
-    }
-    
-    @MainActor
-    private func setupAnimationWithKeyframes(model: ModelEntity) async {
-        guard let scene = model.scene else { return }
-        
-        jointIndices.removeAll()
-        var startingPoseTransforms: [String: Transform] = [:]
-        
-        for jointName in requiredJoints {
-            if let index = model.jointNames.firstIndex(of: jointName) {
-                jointIndices[jointName] = index
-                startingPoseTransforms[jointName] = model.jointTransforms[index]
-            }
-        }
-
-        if !animationKeyframes.isEmpty {
-            animationKeyframes[0].pose = Pose(transforms: startingPoseTransforms)
-        }
-        
-        self.subscription = scene.subscribe(to: SceneEvents.Update.self) { event in
-            self.viewModel.updateTime(event.deltaTime)
-            let loopedTime = self.viewModel.currentTime
-            
-            guard let (prevKeyframe, nextKeyframe) = self.findKeyframes(for: loopedTime) else { return }
-            
-            let timeInRange = loopedTime - prevKeyframe.time
-            let rangeDuration = nextKeyframe.time - prevKeyframe.time
-            let linearT = rangeDuration > 0 ? Float(timeInRange / rangeDuration) : 0
-            let easedT = self.easeInOutBack(linearT)
-            
-            for (jointName, jointIndex) in self.jointIndices {
-                guard let prevTransform = prevKeyframe.pose.transforms[jointName],
-                      let nextTransform = nextKeyframe.pose.transforms[jointName] else { continue }
-                
-                let interpolatedRotation = simd_slerp(prevTransform.rotation, nextTransform.rotation, easedT)
-                
-                var newTransform = model.jointTransforms[jointIndex]
-                newTransform.rotation = interpolatedRotation
-                
-                model.jointTransforms[jointIndex] = newTransform
-            }
-        } as! AnyCancellable
-    }
-
-    private func findKeyframes(for time: TimeInterval) -> (Keyframe, Keyframe)? {
-        guard !animationKeyframes.isEmpty else { return nil }
-        
-        if time < animationKeyframes.first?.time ?? 0 {
-            return (animationKeyframes.first!, animationKeyframes.first!)
-        }
-        
-        for i in 0..<(animationKeyframes.count - 1) {
-            let current = animationKeyframes[i]
-            let next = animationKeyframes[i + 1]
-            if time >= current.time && time <= next.time {
-                return (current, next)
-            }
-        }
-        
-        return (animationKeyframes.last!, animationKeyframes.last!)
-    }
-    
-    // Fallback hardcoded keyframes
-    private func getHardcodedKeyframes() -> [Keyframe] {
-        return [
-            Keyframe(time: 0.5, pose: Pose(transforms: [:])),
-            Keyframe(time: 2, pose: Pose(transforms: [
-                rightShoulderName: Transform(rotation: simd_quatf(angle: 0.8, axis: [0, 0, -1])),
-                rightArmName: Transform(rotation: simd_quatf(angle: -1.2, axis: [0,1,0])),
-                rightForearmName: Transform(rotation: simd_quatf(angle: 1.1, axis: [1,0,0])),
-            ])),
-            Keyframe(time: 14.5, pose: Pose(transforms: [
-                rightShoulderName: Transform(rotation: simd_quatf(angle: 1.5, axis: [0, 0, -1])),
-                rightArmName: Transform(rotation: simd_quatf(angle: -0.1, axis: [0,1,0])),
-            ]))
-        ]
-    }
 }
-
-// MARK: - Joint Names
-let rightShoulderName = "n9/n10/n14"
-let leftShoulderName = "n9/n10/n33"
-let rightArmName = "n9/n10/n14/n15"
-let rightForearmName = "n9/n10/n14/n15/n16"
-let rightHandName = "n9/n10/n14/n15/n16/n17"
-let headName = "n52"
-let rightMiddle1Name = "n9/n10/n14/n15/n16/n17/n18"
-let rightMiddle2Name = "n9/n10/n14/n15/n16/n17/n18/n19"
-let rightRing1Name = "n9/n10/n14/n15/n16/n17/n21"
-let rightRing2Name = "n9/n10/n14/n15/n16/n17/n21/n22"
-let rightPinky1Name = "n9/n10/n14/n15/n16/n17/n24"
-let rightPinky2Name = "n9/n10/n14/n15/n16/n17/n24/n25"
-let rightIndex1Name = "n9/n10/n14/n15/n16/n17/n27"
-let rightIndex2Name = "n9/n10/n14/n15/n16/n17/n27/n28"
-let rightThumb1Name = "n9/n10/n14/n15/n16/n17/n30"
-let rightThumb2Name = "n9/n10/n14/n15/n16/n17/n30/n31"
-
-let requiredJoints = [
-    rightShoulderName, leftShoulderName, rightArmName, rightForearmName, rightHandName,
-    rightMiddle1Name, rightMiddle2Name, rightRing1Name, rightRing2Name,
-    rightPinky1Name, rightPinky2Name, rightIndex1Name, rightIndex2Name,
-    rightThumb1Name, rightThumb2Name
-]
