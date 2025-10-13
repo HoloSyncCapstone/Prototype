@@ -209,25 +209,36 @@ struct ImmersiveView: View {
                 
                 // ========== UPDATE OBJECT POSES ==========
                 // Get current device pose for relative positioning
-                guard let currentDevicePose = self.interpolatePose(from: self.devicePoses, at: currentTime) else { return }
-                
-                // Group object poses by anchorID and update each
+//                guard let currentDevicePose = self.interpolatePose(from: self.devicePoses, at: currentTime) else { return }
+//                
+//                // Group object poses by anchorID and update each
+//                for (anchorID, entity) in self.objectEntities {
+//                    // Filter poses for this specific object
+//                    let objectPosesForAnchor = self.objectPoses.filter { $0.anchorID == anchorID }
+//                    
+//                    if let objectPose = self.interpolatePose(from: objectPosesForAnchor, at: currentTime) {
+//                        // Position object relative to device
+//                        let relativePosition = self.transformToDeviceSpace(
+//                            worldPosition: objectPose.p,
+//                            worldRotation: objectPose.q,
+//                            devicePose: currentDevicePose
+//                        )
+//                        
+//                        entity.transform = Transform(
+//                            scale: [1, 1, 1],
+//                            rotation: relativePosition.rotation,
+//                            translation: relativePosition.position
+//                        )
+//                    }
+//                }
                 for (anchorID, entity) in self.objectEntities {
-                    // Filter poses for this specific object
                     let objectPosesForAnchor = self.objectPoses.filter { $0.anchorID == anchorID }
-                    
+
                     if let objectPose = self.interpolatePose(from: objectPosesForAnchor, at: currentTime) {
-                        // Position object relative to device
-                        let relativePosition = self.transformToDeviceSpace(
-                            worldPosition: objectPose.p,
-                            worldRotation: objectPose.q,
-                            devicePose: currentDevicePose
-                        )
-                        
                         entity.transform = Transform(
                             scale: [1, 1, 1],
-                            rotation: relativePosition.rotation,
-                            translation: relativePosition.position
+                            rotation: objectPose.q,
+                            translation: objectPose.p
                         )
                     }
                 }
