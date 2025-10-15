@@ -12,6 +12,7 @@
 		31A83D892E948E050002E65D /* hand_data_pivoted.csv in Resources */ = {isa = PBXBuildFile; fileRef = 31A83D882E948E050002E65D /* hand_data_pivoted.csv */; };
 		31B6E1AF2E970A8D00F6580B /* object_pose_data_4.csv in Resources */ = {isa = PBXBuildFile; fileRef = 31B6E1AE2E970A8D00F6580B /* object_pose_data_4.csv */; };
 		31B6E1B32E9717C100F6580B /* device_pose_data_3.csv in Resources */ = {isa = PBXBuildFile; fileRef = 31B6E1B22E9717C100F6580B /* device_pose_data_3.csv */; };
+		31B6E2932EA0297200F6580B /* calculated_skeleton_joints.csv in Resources */ = {isa = PBXBuildFile; fileRef = 31B6E2922EA0297200F6580B /* calculated_skeleton_joints.csv */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -21,6 +22,7 @@
 		31A83D882E948E050002E65D /* hand_data_pivoted.csv */ = {isa = PBXFileReference; lastKnownFileType = text; path = hand_data_pivoted.csv; sourceTree = "<group>"; };
 		31B6E1AE2E970A8D00F6580B /* object_pose_data_4.csv */ = {isa = PBXFileReference; lastKnownFileType = text; path = object_pose_data_4.csv; sourceTree = "<group>"; };
 		31B6E1B22E9717C100F6580B /* device_pose_data_3.csv */ = {isa = PBXFileReference; lastKnownFileType = text; path = device_pose_data_3.csv; sourceTree = "<group>"; };
+		31B6E2922EA0297200F6580B /* calculated_skeleton_joints.csv */ = {isa = PBXFileReference; lastKnownFileType = text; path = calculated_skeleton_joints.csv; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -61,6 +63,7 @@
 			children = (
 				31B6E1AE2E970A8D00F6580B /* object_pose_data_4.csv */,
 				31B6E1B22E9717C100F6580B /* device_pose_data_3.csv */,
+				31B6E2922EA0297200F6580B /* calculated_skeleton_joints.csv */,
 				31A83D882E948E050002E65D /* hand_data_pivoted.csv */,
 				3186A60B2E8B462500D5CE57 /* lowpoly.usdz */,
 				3186A5F32E8B45EE00D5CE57 /* Prototype */,
@@ -153,6 +156,7 @@
 				31B6E1AF2E970A8D00F6580B /* object_pose_data_4.csv in Resources */,
 				31A83D892E948E050002E65D /* hand_data_pivoted.csv in Resources */,
 				3186A60C2E8B462500D5CE57 /* lowpoly.usdz in Resources */,
+				31B6E2932EA0297200F6580B /* calculated_skeleton_joints.csv in Resources */,
 				31B6E1B32E9717C100F6580B /* device_pose_data_3.csv in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

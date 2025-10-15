@@ -1,4 +1,4 @@
-// ImmersiveView.swift - Joint Point Cloud Visualization
+// ImmersiveView.swift - Joint Point Cloud Visualization with Skeleton
 import SwiftUI
 import RealityKit
 import simd
@@ -19,6 +19,10 @@ struct ImmersiveView: View {
     // Joint visualization
     @State private var handJointSamples: [HandJointSample] = []
     @State private var jointSpheres: [String: ModelEntity] = [:] // joint name -> sphere entity
+    
+    // Skeleton visualization
+    @State private var skeletonJointSamples: [SkeletonJointSample] = []
+    @State private var skeletonSpheres: [String: ModelEntity] = [:] // skeleton joint name -> sphere entity
     
     // Object & Device tracking
     @State private var devicePoses: [PoseSample] = []
@@ -80,6 +84,9 @@ struct ImmersiveView: View {
                 
                 // Create joint visualization spheres
                 createJointSpheres(content: content)
+                
+                // Create skeleton visualization spheres
+                createSkeletonSpheres(content: content)
                 
                 // Setup animation from CSV
                 Task {
@@ -155,10 +162,60 @@ struct ImmersiveView: View {
         print("✅ Created \(jointSpheres.count) joint visualization spheres")
     }
     
+    // MARK: - Create Skeleton Spheres
+    private func createSkeletonSpheres(content: RealityViewContent) {
+        let skeletonJoints = [
+            "head", "neck", "upper_spine", "mid_spine", "lower_spine",
+            "left_shoulder", "right_shoulder",
+            "left_elbow", "right_elbow",
+            "left_wrist", "right_wrist"
+        ]
+        
+        for jointName in skeletonJoints {
+            var material = PhysicallyBasedMaterial()
+            var radius: Float = 0.012
+            
+            // Color coding and sizing
+            if jointName == "head" {
+                material.baseColor = .init(tint: .systemYellow)
+                material.emissiveColor = .init(color: .yellow)
+                material.emissiveIntensity = 3.0
+                radius = 0.025 // Larger head
+            } else if jointName.contains("spine") {
+                material.baseColor = .init(tint: .systemPurple)
+                material.emissiveColor = .init(color: .purple)
+                material.emissiveIntensity = 2.0
+                radius = 0.015
+            } else if jointName.contains("shoulder") {
+                material.baseColor = .init(tint: .systemOrange)
+                material.emissiveColor = .init(color: .orange)
+                material.emissiveIntensity = 2.5
+                radius = 0.018
+            } else if jointName.contains("elbow") {
+                material.baseColor = .init(tint: .systemCyan)
+                material.emissiveIntensity = 1.5
+            } else if jointName.contains("wrist") {
+                material.baseColor = .init(tint: .systemTeal)
+                material.emissiveIntensity = 1.5
+            } else {
+                material.baseColor = .init(tint: .systemPurple)
+                material.emissiveIntensity = 1.0
+            }
+            
+            let sphere = MeshResource.generateSphere(radius: radius)
+            let sphereEntity = ModelEntity(mesh: sphere, materials: [material])
+            sphereEntity.name = "skeleton_\(jointName)"
+            content.add(sphereEntity)
+            skeletonSpheres[jointName] = sphereEntity
+        }
+        
+        print("✅ Created \(skeletonSpheres.count) skeleton visualization spheres")
+    }
+    
     @MainActor
     private func setupAnimationFromCSV() async {
         do {
-            // Load all three datasets
+            // Load all datasets
             print("📦 Loading datasets...")
             
             devicePoses = PoseCSVLoader.load(resource: "device_pose_data_3")
@@ -170,6 +227,9 @@ struct ImmersiveView: View {
             handJointSamples = try await loadHandJointData(from: "hand_data_pivoted")
             print("✅ Loaded \(handJointSamples.count) hand joint samples")
             
+            skeletonJointSamples = SkeletonCSVLoader.load(resource: "calculated_skeleton_joints")
+            print("✅ Loaded \(skeletonJointSamples.count) skeleton joint samples")
+            
             // === ESTABLISH GLOBAL ANCHOR ===
             if let firstDevicePose = devicePoses.first {
                 globalAnchorPosition = firstDevicePose.p
@@ -180,11 +240,11 @@ struct ImmersiveView: View {
                 normalizeAllPosesToGlobalAnchor()
             }
             
-            // Set total time
-            if let lastSample = handJointSamples.last {
-                viewModel.totalTime = lastSample.t
-                print("⏱️ Total animation time: \(lastSample.t) seconds")
-            }
+            // Set total time from the longest dataset
+            let handTime = handJointSamples.last?.t ?? 0
+            let skeletonTime = skeletonJointSamples.last?.timestamp ?? 0
+            viewModel.totalTime = max(handTime, skeletonTime)
+            print("⏱️ Total animation time: \(viewModel.totalTime) seconds")
             
             // Start animation loop
             startAnimationLoop()
@@ -317,13 +377,23 @@ struct ImmersiveView: View {
                 if let jointSample = self.interpolateHandJoints(at: currentTime) {
                     for (jointName, position) in jointSample.joints {
                         if let sphere = self.jointSpheres[jointName] {
-                            // OPTION 1: Use raw position (no normalization)
+                            // Use raw position (no normalization)
                             sphere.position = position
                             
                             // Debug log wrist positions once per second
                             if jointName.contains("wrist") && Int(currentTime * 60) % 60 == 0 {
                                 print("✋ \(jointName) RAW: \(position)")
                             }
+                        }
+                    }
+                }
+                
+                // Update skeleton joints
+                if let skeletonSample = self.interpolateSkeletonJoints(at: currentTime) {
+                    for (jointName, position) in skeletonSample.joints {
+                        if let sphere = self.skeletonSpheres[jointName] {
+                            // Use raw position for skeleton joints
+                            sphere.position = position
                         }
                     }
                 }
@@ -362,6 +432,39 @@ struct ImmersiveView: View {
         }
         
         return HandJointSample(t: time, chirality: prevSample.chirality, joints: interpolatedJoints)
+    }
+    
+    // MARK: - Interpolate Skeleton Joints
+    private func interpolateSkeletonJoints(at time: TimeInterval) -> SkeletonJointSample? {
+        guard !skeletonJointSamples.isEmpty else { return nil }
+        
+        var prevSample = skeletonJointSamples.first!
+        var nextSample = skeletonJointSamples.first!
+        
+        for i in 0..<skeletonJointSamples.count {
+            if skeletonJointSamples[i].timestamp <= time {
+                prevSample = skeletonJointSamples[i]
+            }
+            if skeletonJointSamples[i].timestamp >= time {
+                nextSample = skeletonJointSamples[i]
+                break
+            }
+        }
+        
+        if prevSample.timestamp == nextSample.timestamp {
+            return prevSample
+        }
+        
+        let t = Float((time - prevSample.timestamp) / (nextSample.timestamp - prevSample.timestamp))
+        var interpolatedJoints: [String: SIMD3<Float>] = [:]
+        
+        for (jointName, prevPos) in prevSample.joints {
+            if let nextPos = nextSample.joints[jointName] {
+                interpolatedJoints[jointName] = prevPos + (nextPos - prevPos) * t
+            }
+        }
+        
+        return SkeletonJointSample(frame: prevSample.frame, timestamp: time, joints: interpolatedJoints)
     }
     
     // MARK: - Global Anchor Normalization
