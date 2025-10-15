@@ -29,6 +29,9 @@ struct ImmersiveView: View {
     @State private var globalAnchorRotation: simd_quatf = simd_quatf()
     @State private var globalAnchorPosition: SIMD3<Float> = .zero
     
+    // Timer for animation loop
+    @State private var animationTimer: Timer?
+    
     var body: some View {
         RealityView { content, attachments in
             do {
@@ -58,7 +61,7 @@ struct ImmersiveView: View {
                 
                 // Create object entities - make them bigger and glowing
                 let uniqueAnchorIDs = Set(PoseCSVLoader.load(resource: "object_pose_data_4").compactMap { $0.anchorID })
-                print("📍 Found \(uniqueAnchorIDs.count) unique objects: \(uniqueAnchorIDs)")
+                print("📦 Found \(uniqueAnchorIDs.count) unique objects: \(uniqueAnchorIDs)")
                 for (index, anchorID) in uniqueAnchorIDs.enumerated() {
                     let objectBox = MeshResource.generateBox(size: [0.08, 0.08, 0.08])
                     var objectMat = PhysicallyBasedMaterial()
@@ -91,6 +94,11 @@ struct ImmersiveView: View {
             Attachment(id: "controls") {
                 PlaybackControlsView()
             }
+        }
+        .onDisappear {
+            // Clean up timer when view disappears
+            animationTimer?.invalidate()
+            animationTimer = nil
         }
     }
     
@@ -166,7 +174,7 @@ struct ImmersiveView: View {
             if let firstDevicePose = devicePoses.first {
                 globalAnchorPosition = firstDevicePose.p
                 globalAnchorRotation = firstDevicePose.q
-                print("🌐 Global anchor set at position: \(globalAnchorPosition)")
+                print("🌍 Global anchor set at position: \(globalAnchorPosition)")
                 
                 // Normalize all poses relative to this anchor
                 normalizeAllPosesToGlobalAnchor()
@@ -262,7 +270,11 @@ struct ImmersiveView: View {
     
     // MARK: - Start Animation Loop
     private func startAnimationLoop() {
-        Timer.scheduledTimer(withTimeInterval: 1.0/60.0, repeats: true) { timer in
+        // Invalidate any existing timer first
+        animationTimer?.invalidate()
+        
+        // Create and store the new timer
+        animationTimer = Timer.scheduledTimer(withTimeInterval: 1.0/60.0, repeats: true) { timer in
             Task { @MainActor in
                 if !self.viewModel.isPlaying {
                     return
