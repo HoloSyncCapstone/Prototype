@@ -9,7 +9,6 @@
 /* Begin PBXBuildFile section */
 		3186A5F72E8B45EE00D5CE57 /* RealityKitContent in Frameworks */ = {isa = PBXBuildFile; productRef = 3186A5F62E8B45EE00D5CE57 /* RealityKitContent */; };
 		3186A60C2E8B462500D5CE57 /* lowpoly.usdz in Resources */ = {isa = PBXBuildFile; fileRef = 3186A60B2E8B462500D5CE57 /* lowpoly.usdz */; };
-		31A83D892E948E050002E65D /* hand_data_pivoted.csv in Resources */ = {isa = PBXBuildFile; fileRef = 31A83D882E948E050002E65D /* hand_data_pivoted.csv */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -144,7 +143,6 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				31A83D892E948E050002E65D /* hand_data_pivoted.csv in Resources */,
 				3186A60C2E8B462500D5CE57 /* lowpoly.usdz in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
