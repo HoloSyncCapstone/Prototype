@@ -1,0 +1,203 @@
+[
+  {
+    "isFinal" : true,
+    "text" : "Oh, that's pretty. Yeah.",
+    "tokens" : [
+      {
+        "endSec" : 2.241036374999999,
+        "startSec" : 0.14103637499999877,
+        "text" : "Oh,"
+      },
+      {
+        "endSec" : 2.4210363749999986,
+        "startSec" : 2.241036374999999,
+        "text" : " that's"
+      },
+      {
+        "endSec" : 3.261036374999999,
+        "startSec" : 2.4210363749999986,
+        "text" : " pretty."
+      },
+      {
+        "endSec" : 4.221036374999999,
+        "startSec" : 3.261036374999999,
+        "text" : " Yeah."
+      }
+    ]
+  },
+  {
+    "isFinal" : true,
+    "text" : " Yeah, just gonna do whatever.",
+    "tokens" : [
+      {
+        "endSec" : 4.761036374999999,
+        "startSec" : 4.341036374999999,
+        "text" : " Yeah,"
+      },
+      {
+        "endSec" : 5.061036374999999,
+        "startSec" : 4.761036374999999,
+        "text" : " just"
+      },
+      {
+        "endSec" : 5.121036374999999,
+        "startSec" : 5.061036374999999,
+        "text" : " gonna"
+      },
+      {
+        "endSec" : 5.301036374999999,
+        "startSec" : 5.121036374999999,
+        "text" : " do"
+      },
+      {
+        "endSec" : 5.961036374999999,
+        "startSec" : 5.301036374999999,
+        "text" : " whatever."
+      }
+    ]
+  },
+  {
+    "isFinal" : true,
+    "text" : " Sorry, what?",
+    "tokens" : [
+      {
+        "endSec" : 6.261036374999999,
+        "startSec" : 6.021036374999999,
+        "text" : " Sorry,"
+      },
+      {
+        "endSec" : 6.501036374999999,
+        "startSec" : 6.261036374999999,
+        "text" : " what?"
+      }
+    ]
+  },
+  {
+    "isFinal" : true,
+    "text" : " Just do whatever you want. Just, like, we hands around, I guess.",
+    "tokens" : [
+      {
+        "endSec" : 6.801036374999999,
+        "startSec" : 6.561036374999999,
+        "text" : " Just"
+      },
+      {
+        "endSec" : 6.981036374999999,
+        "startSec" : 6.801036374999999,
+        "text" : " do"
+      },
+      {
+        "endSec" : 7.101036374999999,
+        "startSec" : 6.981036374999999,
+        "text" : " whatever"
+      },
+      {
+        "endSec" : 7.2810363749999985,
+        "startSec" : 7.101036374999999,
+        "text" : " you"
+      },
+      {
+        "endSec" : 7.521036374999999,
+        "startSec" : 7.2810363749999985,
+        "text" : " want."
+      },
+      {
+        "endSec" : 7.881036374999999,
+        "startSec" : 7.521036374999999,
+        "text" : " Just,"
+      },
+      {
+        "endSec" : 8.001036374999998,
+        "startSec" : 7.881036374999999,
+        "text" : " like,"
+      },
+      {
+        "endSec" : 8.121036375,
+        "startSec" : 8.001036374999998,
+        "text" : " we"
+      },
+      {
+        "endSec" : 8.241036374999998,
+        "startSec" : 8.121036375,
+        "text" : " hands"
+      },
+      {
+        "endSec" : 8.541036375,
+        "startSec" : 8.241036374999998,
+        "text" : " around,"
+      },
+      {
+        "endSec" : 8.601036375,
+        "startSec" : 8.541036375,
+        "text" : " I"
+      },
+      {
+        "endSec" : 8.841036374999998,
+        "startSec" : 8.601036375,
+        "text" : " guess."
+      }
+    ]
+  },
+  {
+    "isFinal" : true,
+    "text" : " Okay, so I'm going to try this again.",
+    "tokens" : [
+      {
+        "endSec" : 9.861036375,
+        "startSec" : 8.901036374999999,
+        "text" : " Okay,"
+      },
+      {
+        "endSec" : 9.921036374999998,
+        "startSec" : 9.861036375,
+        "text" : " so"
+      },
+      {
+        "endSec" : 10.161036374999998,
+        "startSec" : 9.921036374999998,
+        "text" : " I'm"
+      },
+      {
+        "endSec" : 10.221036374999999,
+        "startSec" : 10.161036374999998,
+        "text" : " going"
+      },
+      {
+        "endSec" : 10.281036375,
+        "startSec" : 10.221036374999999,
+        "text" : " to"
+      },
+      {
+        "endSec" : 10.401036374999999,
+        "startSec" : 10.281036375,
+        "text" : " try"
+      },
+      {
+        "endSec" : 10.461036374999999,
+        "startSec" : 10.401036374999999,
+        "text" : " this"
+      },
+      {
+        "endSec" : 11.721036374999999,
+        "startSec" : 10.461036374999999,
+        "text" : " again."
+      }
+    ]
+  },
+  {
+    "isFinal" : true,
+    "text" : " Then hit.",
+    "tokens" : [
+      {
+        "endSec" : 13.101036375,
+        "startSec" : 11.781036375,
+        "text" : " Then"
+      },
+      {
+        "endSec" : 13.441036375,
+        "startSec" : 13.101036375,
+        "text" : " hit."
+      }
+    ]
+  }
+]
