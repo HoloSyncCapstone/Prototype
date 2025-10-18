@@ -7,6 +7,24 @@ struct TrainingSession: Identifiable, Equatable {
     let name: String
     let description: String
     let duration: TimeInterval
+    let instructor: String
+    let accuracyRate: Int
+    let difficulty: Difficulty
+    let category: Category
+    let icon: String
+    
+    enum Difficulty: String {
+        case beginner = "Beginner"
+        case intermediate = "Intermediate"
+        case advanced = "Advanced"
+    }
+    
+    enum Category: String {
+        case medical = "Medical"
+        case aviation = "Aviation"
+        case music = "Music"
+        case engineering = "Engineering"
+    }
     
     static func == (lhs: TrainingSession, rhs: TrainingSession) -> Bool {
         return lhs.id == rhs.id
@@ -29,19 +47,64 @@ class ViewModel: ObservableObject {
     // MARK: - Available Sessions
     let trainingSessions: [TrainingSession] = [
         TrainingSession(
-            name: "Hand Signals",
-            description: "Learn basic hand signal animations",
-            duration: 15.0
+            name: "Surgical Suturing Technique",
+            description: "Master the precise hand movements for interrupted suturing with haptic feedback integration",
+            duration: 512.0,
+            instructor: "Dr. Sarah Chen",
+            accuracyRate: 94,
+            difficulty: .advanced,
+            category: .medical,
+            icon: "🏥"
         ),
         TrainingSession(
-            name: "Advanced Gestures",
-            description: "Master complex gesture sequences",
-            duration: 15.0
+            name: "Aircraft Engine Inspection",
+            description: "Learn systematic visual and tactile inspection protocols for turbine engines",
+            duration: 766.0,
+            instructor: "Mike Rodriguez",
+            accuracyRate: 87,
+            difficulty: .intermediate,
+            category: .aviation,
+            icon: "✈️"
         ),
         TrainingSession(
-            name: "Communication Basics",
-            description: "Essential communication movements",
-            duration: 15.0
+            name: "Violin Bow Technique",
+            description: "Fundamental bowing patterns and wrist movements for orchestral performance",
+            duration: 376.0,
+            instructor: "Elena Volkov",
+            accuracyRate: 98,
+            difficulty: .beginner,
+            category: .music,
+            icon: "🎻"
+        ),
+        TrainingSession(
+            name: "Robotic Arm Calibration",
+            description: "Precision calibration sequence for six-axis industrial robotic systems",
+            duration: 1022.0,
+            instructor: "Dr. James Liu",
+            accuracyRate: 91,
+            difficulty: .advanced,
+            category: .engineering,
+            icon: "🤖"
+        ),
+        TrainingSession(
+            name: "Heart Surgery Preparation",
+            description: "Pre-operative preparation techniques for cardiac interventional procedures",
+            duration: 1125.0,
+            instructor: "Dr. Maria Santos",
+            accuracyRate: 98,
+            difficulty: .advanced,
+            category: .medical,
+            icon: "❤️"
+        ),
+        TrainingSession(
+            name: "Piano Performance",
+            description: "Advanced finger positioning and dynamics for classical piano performance",
+            duration: 573.0,
+            instructor: "Chen Wei",
+            accuracyRate: 89,
+            difficulty: .intermediate,
+            category: .music,
+            icon: "🎹"
         )
     ]
     
