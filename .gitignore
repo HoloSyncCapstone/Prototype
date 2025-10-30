@@ -2,3 +2,6 @@
 *.xcuserdata
 *.zip
 *.csv
+*.xcuserdata/
+*.xcuserstate
+.DS_Store
