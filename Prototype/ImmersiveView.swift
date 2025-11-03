@@ -1,4 +1,4 @@
-// ImmersiveView.swift (Updated with better UI positioning)
+// ImmersiveView.swift (Updated with CSV loading)
 import SwiftUI
 import RealityKit
 import simd
@@ -20,6 +20,7 @@ struct ImmersiveView: View {
     @State private var subscription: AnyCancellable?
     @State private var modelEntity: ModelEntity?
     @State private var jointIndices: [String: Int] = [:]
+    @State private var animationKeyframes: [Keyframe] = []
     
     var body: some View {
         RealityView { content, attachments in
@@ -33,32 +34,27 @@ struct ImmersiveView: View {
                 
                 model.scale = [0.015,0.015,0.015]
                 
-                // --- LIGHTING: Add a directional light pointing at the human ---
+                // --- LIGHTING ---
                 let lightEntity = DirectionalLight()
-                // Place the light above and in front of the model
                 lightEntity.position = SIMD3<Float>(20,20,20)
-                // Point the light towards the model's position
                 lightEntity.look(at: model.position, from: lightEntity.position, relativeTo: nil)
-                lightEntity.light.intensity = 5000 // Adjust intensity as needed
+                lightEntity.light.intensity = 5000
                 content.add(lightEntity)
-                
-                // --- END LIGHTING ---
                 
                 content.add(model)
                 
-                // Add the controls attachment positioned to the right of the model
+                // Add the controls attachment
                 if let controlsEntity = attachments.entity(for: "controls") {
-                    controlsEntity.position = [0.8, 1.2, -2] // Position to the right of the model
+                    controlsEntity.position = [0.8, 1.2, -2]
                     content.add(controlsEntity)
                 }
                 
-                // Store model reference
                 self.modelEntity = model
                 
-                // Setup animation after a small delay to ensure the scene is ready
+                // Setup animation from CSV
                 Task {
-                    try await Task.sleep(nanoseconds: 100_000_000) // 0.1s
-                    await setupAnimation(model: model)
+                    try await Task.sleep(nanoseconds: 100_000_000)
+                    await setupAnimationFromCSV(model: model)
                 }
                 
             } catch {
@@ -83,19 +79,92 @@ struct ImmersiveView: View {
     }
     
     @MainActor
-    private func setupAnimation(model: ModelEntity) async {
-        guard let scene = model.scene else {
-            print("ERROR: Scene not found on model. Retrying in 0.1s.")
-            // Retry if the scene isn't ready yet
-            Task {
-                try await Task.sleep(nanoseconds: 100_000_000)
-                await setupAnimation(model: model)
+    private func setupAnimationFromCSV(model: ModelEntity) async {
+        do {
+            // Load keyframes from CSV
+            animationKeyframes = try await CSVAnimationLoader.loadAnimation(from: "hand_data_pivoted")
+            
+            print("Loaded \(animationKeyframes.count) keyframes from CSV")
+            
+            // Set total time based on last keyframe
+            if let lastKeyframe = animationKeyframes.last {
+                viewModel.totalTime = lastKeyframe.time
+                print("Total animation time: \(lastKeyframe.time) seconds")
             }
-            return
+            
+            guard let scene = model.scene else {
+                print("ERROR: Scene not found on model. Retrying in 0.1s.")
+                Task {
+                    try await Task.sleep(nanoseconds: 100_000_000)
+                    await setupAnimationFromCSV(model: model)
+                }
+                return
+            }
+            
+            // Build joint indices
+            jointIndices.removeAll()
+            var startingPoseTransforms: [String: Transform] = [:]
+            
+            for jointName in requiredJoints {
+                if let index = model.jointNames.firstIndex(of: jointName) {
+                    jointIndices[jointName] = index
+                    startingPoseTransforms[jointName] = model.jointTransforms[index]
+                }
+            }
+
+            // Set first keyframe to starting pose if needed
+            if !animationKeyframes.isEmpty && animationKeyframes[0].time == 0 {
+                // Merge starting pose with first keyframe
+                for (joint, transform) in startingPoseTransforms {
+                    if animationKeyframes[0].pose.transforms[joint] == nil {
+                        animationKeyframes[0].pose.transforms[joint] = transform
+                    }
+                }
+            }
+            
+            // Subscribe to scene updates
+            self.subscription = scene.subscribe(to: SceneEvents.Update.self) { event in
+                self.viewModel.updateTime(event.deltaTime)
+                let loopedTime = self.viewModel.currentTime
+                
+                guard let (prevKeyframe, nextKeyframe) = self.findKeyframes(for: loopedTime) else { return }
+                
+                let timeInRange = loopedTime - prevKeyframe.time
+                let rangeDuration = nextKeyframe.time - prevKeyframe.time
+                let linearT = rangeDuration > 0 ? Float(timeInRange / rangeDuration) : 0
+                let easedT = self.easeInOutBack(linearT)
+                
+                // Apply interpolated transforms
+                for (jointName, jointIndex) in self.jointIndices {
+                    guard let prevTransform = prevKeyframe.pose.transforms[jointName],
+                          let nextTransform = nextKeyframe.pose.transforms[jointName] else { continue }
+                    
+                    let interpolatedRotation = simd_slerp(prevTransform.rotation, nextTransform.rotation, easedT)
+                    
+                    var newTransform = model.jointTransforms[jointIndex]
+                    newTransform.rotation = interpolatedRotation
+                    
+                    model.jointTransforms[jointIndex] = newTransform
+                }
+            } as! AnyCancellable
+            
+            print("CSV Animation started successfully!")
+            
+        } catch {
+            print("Failed to load CSV animation: \(error)")
+            print("Falling back to hardcoded animation")
+            // Fall back to hardcoded animation
+            animationKeyframes = getHardcodedKeyframes()
+            await setupAnimationWithKeyframes(model: model)
         }
+    }
+    
+    @MainActor
+    private func setupAnimationWithKeyframes(model: ModelEntity) async {
+        guard let scene = model.scene else { return }
         
-        var startingPoseTransforms: [String: Transform] = [:]
         jointIndices.removeAll()
+        var startingPoseTransforms: [String: Transform] = [:]
         
         for jointName in requiredJoints {
             if let index = model.jointNames.firstIndex(of: jointName) {
@@ -108,12 +177,8 @@ struct ImmersiveView: View {
             animationKeyframes[0].pose = Pose(transforms: startingPoseTransforms)
         }
         
-        // Subscribe to scene updates
         self.subscription = scene.subscribe(to: SceneEvents.Update.self) { event in
-            // Update time in ViewModel
             self.viewModel.updateTime(event.deltaTime)
-            
-            // Use the ViewModel's current time for animation
             let loopedTime = self.viewModel.currentTime
             
             guard let (prevKeyframe, nextKeyframe) = self.findKeyframes(for: loopedTime) else { return }
@@ -123,7 +188,6 @@ struct ImmersiveView: View {
             let linearT = rangeDuration > 0 ? Float(timeInRange / rangeDuration) : 0
             let easedT = self.easeInOutBack(linearT)
             
-            // Apply interpolated transforms
             for (jointName, jointIndex) in self.jointIndices {
                 guard let prevTransform = prevKeyframe.pose.transforms[jointName],
                       let nextTransform = nextKeyframe.pose.transforms[jointName] else { continue }
@@ -136,11 +200,11 @@ struct ImmersiveView: View {
                 model.jointTransforms[jointIndex] = newTransform
             }
         } as! AnyCancellable
-        
-        print("Animation started successfully!")
     }
 
     private func findKeyframes(for time: TimeInterval) -> (Keyframe, Keyframe)? {
+        guard !animationKeyframes.isEmpty else { return nil }
+        
         if time < animationKeyframes.first?.time ?? 0 {
             return (animationKeyframes.first!, animationKeyframes.first!)
         }
@@ -155,9 +219,25 @@ struct ImmersiveView: View {
         
         return (animationKeyframes.last!, animationKeyframes.last!)
     }
+    
+    // Fallback hardcoded keyframes
+    private func getHardcodedKeyframes() -> [Keyframe] {
+        return [
+            Keyframe(time: 0.5, pose: Pose(transforms: [:])),
+            Keyframe(time: 2, pose: Pose(transforms: [
+                rightShoulderName: Transform(rotation: simd_quatf(angle: 0.8, axis: [0, 0, -1])),
+                rightArmName: Transform(rotation: simd_quatf(angle: -1.2, axis: [0,1,0])),
+                rightForearmName: Transform(rotation: simd_quatf(angle: 1.1, axis: [1,0,0])),
+            ])),
+            Keyframe(time: 14.5, pose: Pose(transforms: [
+                rightShoulderName: Transform(rotation: simd_quatf(angle: 1.5, axis: [0, 0, -1])),
+                rightArmName: Transform(rotation: simd_quatf(angle: -0.1, axis: [0,1,0])),
+            ]))
+        ]
+    }
 }
 
-// MARK: - Joint Names & Keyframes (Preserve your exact data)
+// MARK: - Joint Names
 let rightShoulderName = "n9/n10/n14"
 let leftShoulderName = "n9/n10/n33"
 let rightArmName = "n9/n10/n14/n15"
@@ -180,67 +260,4 @@ let requiredJoints = [
     rightMiddle1Name, rightMiddle2Name, rightRing1Name, rightRing2Name,
     rightPinky1Name, rightPinky2Name, rightIndex1Name, rightIndex2Name,
     rightThumb1Name, rightThumb2Name
-]
-
-let restPose = Pose(transforms: [:])
-
-// NOTE: Replace this array with your full keyframe data
-var animationKeyframes: [Keyframe] = [
-    Keyframe(time: 0.5, pose: restPose),
-    // Example keyframes (replace with your full animation data):
-    Keyframe(time: 2, pose: Pose(transforms: [
-        rightShoulderName: Transform(rotation: simd_quatf(angle: 0.8, axis: [0, 0, -1])),
-        rightArmName: Transform(rotation: simd_quatf(angle: -1.2, axis: [0,1,0])),
-        rightForearmName: Transform(rotation: simd_quatf(angle: 1.1, axis: [1,0,0])),
-        rightHandName: Transform(rotation: simd_quatf(angle: 0.2, axis: [1,0,0])),
-        rightMiddle1Name: Transform(rotation: simd_quatf(angle: 1.4, axis: [0,0,-1])),
-        rightMiddle2Name: Transform(rotation: simd_quatf(angle: 2, axis: [0,0,-1])),
-        rightRing1Name: Transform(rotation: simd_quatf(angle: 1.4, axis: [0,0,-1])),
-        rightRing2Name: Transform(rotation: simd_quatf(angle: 2.0, axis: [0,0,-1])),
-        rightPinky1Name: Transform(rotation: simd_quatf(angle: 1.4, axis: [0,0,-1])),
-        rightPinky2Name: Transform(rotation: simd_quatf(angle: 2.0, axis: [0,0,-1])),
-        rightIndex1Name: Transform(rotation: simd_quatf(angle: 1.2, axis: [0,0,-1])),
-        rightIndex2Name: Transform(rotation: simd_quatf(angle: 2, axis: [0,0,-1])),
-        rightThumb1Name: Transform(rotation: simd_quatf(angle: 1.2, axis: [0,0,-1])),
-        rightThumb2Name: Transform(rotation: simd_quatf(angle: 1, axis: [-1,0,0])),
-    ])),
-    
-    //pinky/index extended
-    Keyframe(time: 7, pose: Pose(transforms: [
-        rightShoulderName: Transform(rotation: simd_quatf(angle: 0.8, axis: [0, 0, -1])),
-        rightArmName: Transform(rotation: simd_quatf(angle: -1.3, axis: [0,1,0])),
-        rightForearmName: Transform(rotation: simd_quatf(angle: 1.3, axis: [1,0,0])),
-        // --- Fingers ---
-        rightMiddle1Name: Transform(rotation: simd_quatf(angle: 1.4, axis: [0,0,-1])),
-        rightMiddle2Name: Transform(rotation: simd_quatf(angle: 2, axis: [0,0,-1])),
-        rightRing1Name: Transform(rotation: simd_quatf(angle: 1.4, axis: [0,0,-1])),
-        rightRing2Name: Transform(rotation: simd_quatf(angle: 2.0, axis: [0,0,-1])),
-        rightPinky1Name: Transform(rotation: simd_quatf(angle: 0.0, axis: [1,0,0])),
-        rightPinky2Name: Transform(rotation: simd_quatf(angle: -0.1, axis: [1,0,0])),
-        rightIndex1Name: Transform(rotation: simd_quatf(angle: 0.0, axis: [1,0,0])),
-        rightIndex2Name: Transform(rotation: simd_quatf(angle: -0.1, axis: [1,0,0])),
-        rightThumb1Name: Transform(rotation: simd_quatf(angle: 1.2, axis: [0,0,-1])),
-        rightThumb2Name: Transform(rotation: simd_quatf(angle: 0.7, axis: [-1,0,0])),
-    ])),
-    
-    
-        
-    Keyframe(time: 14.5, pose: Pose(transforms: [
-        // Return arm to a near-neutral position to blend with the start pose
-        rightShoulderName: Transform(rotation: simd_quatf(angle: 1.5, axis: [0, 0, -1])),
-        rightArmName: Transform(rotation: simd_quatf(angle: -0.1, axis: [0,1,0])),
-        rightForearmName: Transform(rotation: simd_quatf(angle: 0.1, axis: [1,0,0])),
-        rightHandName: Transform(rotation: simd_quatf(angle: 0, axis: [0,1,0])),
-        // --- Fingers (open and relaxed) ---
-        rightMiddle1Name: Transform(rotation: simd_quatf(angle: 0.0, axis: [1,0,0])),
-        rightMiddle2Name: Transform(rotation: simd_quatf(angle: 0.0, axis: [1,0,0])),
-        rightRing1Name: Transform(rotation: simd_quatf(angle: 0.0, axis: [1,0,0])),
-        rightRing2Name: Transform(rotation: simd_quatf(angle: 0.0, axis: [1,0,0])),
-        rightPinky1Name: Transform(rotation: simd_quatf(angle: 0.0, axis: [1,0,0])),
-        rightPinky2Name: Transform(rotation: simd_quatf(angle: 0.0, axis: [1,0,0])),
-        rightIndex1Name: Transform(rotation: simd_quatf(angle: 0.0, axis: [1,0,0])),
-        rightIndex2Name: Transform(rotation: simd_quatf(angle: 0.0, axis: [1,0,0])),
-        rightThumb1Name: Transform(rotation: simd_quatf(angle: 0.0, axis: [1,0,0])),
-        rightThumb2Name: Transform(rotation: simd_quatf(angle: 0.0, axis: [-1,0,0])),
-    ]))
 ]
