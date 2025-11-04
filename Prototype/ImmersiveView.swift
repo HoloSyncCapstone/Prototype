@@ -1,28 +1,18 @@
-// ImmersiveView.swift - Joint Point Cloud Visualization with Skeleton
+// ImmersiveView.swift - Complete Skeleton with Hierarchy and Bone Lines
 import SwiftUI
 import RealityKit
 import simd
 import Combine
-
-// MARK: - Data Structures
-struct HandJointSample {
-    let t: Double
-    let chirality: String // "left" or "right"
-    let joints: [String: SIMD3<Float>] // joint name -> position
-}
 
 // MARK: - Main View
 struct ImmersiveView: View {
     @EnvironmentObject var viewModel: ViewModel
     @State private var subscription: AnyCancellable?
     
-    // Joint visualization
-    @State private var handJointSamples: [HandJointSample] = []
-    @State private var jointSpheres: [String: ModelEntity] = [:] // joint name -> sphere entity
-    
     // Skeleton visualization
     @State private var skeletonJointSamples: [SkeletonJointSample] = []
-    @State private var skeletonSpheres: [String: ModelEntity] = [:] // skeleton joint name -> sphere entity
+    @State private var skeletonSpheres: [String: ModelEntity] = [:] // joint name -> sphere entity
+    @State private var boneLineEntities: [String: ModelEntity] = [:] // "parent_child" -> line entity
     
     // Object & Device tracking
     @State private var devicePoses: [PoseSample] = []
@@ -30,8 +20,9 @@ struct ImmersiveView: View {
     @State private var deviceEntity: ModelEntity?
     @State private var objectEntities: [String: ModelEntity] = [:]
 
-    @State private var globalAnchorRotation: simd_quatf = simd_quatf()
-    @State private var globalAnchorPosition: SIMD3<Float> = .zero
+    // Root anchor for skeleton
+    @State private var rootAnchorPosition: SIMD3<Float> = .zero
+    @State private var rootAnchorRotation: simd_quatf = simd_quatf()
     
     // Timer for animation loop
     @State private var animationTimer: Timer?
@@ -52,7 +43,7 @@ struct ImmersiveView: View {
                     content.add(controlsEntity)
                 }
                 
-                // Create device cube (white) - make it bigger and visible
+                // Create device cube (white)
                 let headsetBox = MeshResource.generateBox(size: [0.15, 0.10, 0.12])
                 var headsetMat = PhysicallyBasedMaterial()
                 headsetMat.baseColor = .init(tint: .white)
@@ -63,7 +54,7 @@ struct ImmersiveView: View {
                 content.add(deviceCube)
                 self.deviceEntity = deviceCube
                 
-                // Create object entities - make them bigger and glowing
+                // Create object entities
                 let uniqueAnchorIDs = Set(PoseCSVLoader.load(resource: "object_pose_data_4").compactMap { $0.anchorID })
                 print("📦 Found \(uniqueAnchorIDs.count) unique objects: \(uniqueAnchorIDs)")
                 for (index, anchorID) in uniqueAnchorIDs.enumerated() {
@@ -82,11 +73,8 @@ struct ImmersiveView: View {
                     objectEntities[anchorID] = objectEntity
                 }
                 
-                // Create joint visualization spheres
-                createJointSpheres(content: content)
-                
-                // Create skeleton visualization spheres
-                createSkeletonSpheres(content: content)
+                // Create skeleton visualization (joints + bones)
+                createSkeletonVisualization(content: content)
                 
                 // Setup animation from CSV
                 Task {
@@ -103,119 +91,145 @@ struct ImmersiveView: View {
             }
         }
         .onDisappear {
-            // Clean up timer when view disappears
             animationTimer?.invalidate()
             animationTimer = nil
         }
     }
     
-    // MARK: - Create Joint Spheres
-    private func createJointSpheres(content: RealityViewContent) {
-        // Define all hand joints we want to visualize
-        let jointNames = [
-            // Right hand
-            "right_wrist", "right_thumb_tip", "right_index_tip", "right_middle_tip",
-            "right_ring_tip", "right_pinky_tip",
-            "right_thumb_knuckle", "right_index_knuckle", "right_middle_knuckle",
-            "right_ring_knuckle", "right_pinky_knuckle",
-            // Left hand
-            "left_wrist", "left_thumb_tip", "left_index_tip", "left_middle_tip",
-            "left_ring_tip", "left_pinky_tip",
-            "left_thumb_knuckle", "left_index_knuckle", "left_middle_knuckle",
-            "left_ring_knuckle", "left_pinky_knuckle"
-        ]
-        
-        for jointName in jointNames {
-            let sphere = MeshResource.generateSphere(radius: 0.01)
+    // MARK: - Create Skeleton Visualization
+    private func createSkeletonVisualization(content: RealityViewContent) {
+        // Create joint spheres
+        for (jointName, _) in SkeletonHierarchy.hierarchy {
             var material = PhysicallyBasedMaterial()
+            var radius: Float = 0.008
             
-            // Color code: right hand = blue, left hand = green
-            if jointName.contains("right") {
-                material.baseColor = .init(tint: .systemBlue)
-            } else {
-                material.baseColor = .init(tint: .systemGreen)
-            }
-            
-            // Wrists and tips are brighter and larger
-            if jointName.contains("wrist") {
-                material.emissiveColor = .init(color: jointName.contains("right") ? .blue : .green)
-                material.emissiveIntensity = 3.0
-                let largeSphere = MeshResource.generateSphere(radius: 0.015) // Larger wrist
-                let sphereEntity = ModelEntity(mesh: largeSphere, materials: [material])
-                sphereEntity.name = jointName
-                content.add(sphereEntity)
-                jointSpheres[jointName] = sphereEntity
-            } else if jointName.contains("tip") {
-                material.emissiveIntensity = 2.0
-                let sphereEntity = ModelEntity(mesh: sphere, materials: [material])
-                sphereEntity.name = jointName
-                content.add(sphereEntity)
-                jointSpheres[jointName] = sphereEntity
-            } else {
-                let sphereEntity = ModelEntity(mesh: sphere, materials: [material])
-                sphereEntity.name = jointName
-                content.add(sphereEntity)
-                jointSpheres[jointName] = sphereEntity
-            }
-        }
-        
-        print("✅ Created \(jointSpheres.count) joint visualization spheres")
-    }
-    
-    // MARK: - Create Skeleton Spheres
-    private func createSkeletonSpheres(content: RealityViewContent) {
-        let skeletonJoints = [
-            "head", "neck", "upper_spine", "mid_spine", "lower_spine",
-            "left_shoulder", "right_shoulder",
-            "left_elbow", "right_elbow",
-            "left_wrist", "right_wrist"
-        ]
-        
-        for jointName in skeletonJoints {
-            var material = PhysicallyBasedMaterial()
-            var radius: Float = 0.012
-            
-            // Color coding and sizing
+            // Color coding and sizing based on joint type
             if jointName == "head" {
                 material.baseColor = .init(tint: .systemYellow)
                 material.emissiveColor = .init(color: .yellow)
                 material.emissiveIntensity = 3.0
-                radius = 0.025 // Larger head
+                radius = 0.020
+            } else if jointName == SkeletonHierarchy.rootJoint {
+                // Root joint - make it very visible
+                material.baseColor = .init(tint: .systemRed)
+                material.emissiveColor = .init(color: .red)
+                material.emissiveIntensity = 4.0
+                radius = 0.025
             } else if jointName.contains("spine") {
                 material.baseColor = .init(tint: .systemPurple)
                 material.emissiveColor = .init(color: .purple)
                 material.emissiveIntensity = 2.0
-                radius = 0.015
+                radius = 0.012
             } else if jointName.contains("shoulder") {
                 material.baseColor = .init(tint: .systemOrange)
                 material.emissiveColor = .init(color: .orange)
                 material.emissiveIntensity = 2.5
-                radius = 0.018
-            } else if jointName.contains("elbow") {
+                radius = 0.015
+            } else if jointName.contains("elbow") || jointName.contains("wrist") {
                 material.baseColor = .init(tint: .systemCyan)
                 material.emissiveIntensity = 1.5
-            } else if jointName.contains("wrist") {
-                material.baseColor = .init(tint: .systemTeal)
-                material.emissiveIntensity = 1.5
-            } else {
-                material.baseColor = .init(tint: .systemPurple)
+                radius = 0.010
+            } else if jointName.contains("right_") {
+                // Right hand joints - blue
+                material.baseColor = .init(tint: .systemBlue)
                 material.emissiveIntensity = 1.0
+                radius = 0.006
+                
+                if jointName.contains("Knuckle") {
+                    radius = 0.008
+                    material.emissiveIntensity = 1.5
+                } else if jointName.contains("Tip") {
+                    material.emissiveIntensity = 2.0
+                }
+            } else if jointName.contains("left_") {
+                // Left hand joints - green
+                material.baseColor = .init(tint: .systemGreen)
+                material.emissiveIntensity = 1.0
+                radius = 0.006
+                
+                if jointName.contains("Knuckle") {
+                    radius = 0.008
+                    material.emissiveIntensity = 1.5
+                } else if jointName.contains("Tip") {
+                    material.emissiveIntensity = 2.0
+                }
             }
             
             let sphere = MeshResource.generateSphere(radius: radius)
             let sphereEntity = ModelEntity(mesh: sphere, materials: [material])
-            sphereEntity.name = "skeleton_\(jointName)"
+            sphereEntity.name = "joint_\(jointName)"
             content.add(sphereEntity)
             skeletonSpheres[jointName] = sphereEntity
         }
         
-        print("✅ Created \(skeletonSpheres.count) skeleton visualization spheres")
+        print("✅ Created \(skeletonSpheres.count) skeleton joint spheres")
+        
+        // Create bone lines
+        let boneConnections = SkeletonHierarchy.getBoneConnections()
+        for (parent, child) in boneConnections {
+            let boneLine = createBoneLine()
+            boneLine.name = "bone_\(parent)_\(child)"
+            content.add(boneLine)
+            boneLineEntities["\(parent)_\(child)"] = boneLine
+        }
+        
+        print("✅ Created \(boneLineEntities.count) bone lines")
+    }
+    
+    // MARK: - Create Bone Line
+    private func createBoneLine() -> ModelEntity {
+        // Create a thin cylinder to represent a bone
+        let cylinder = MeshResource.generateBox(size: [0.003, 1.0, 0.003])
+        var material = PhysicallyBasedMaterial()
+        material.baseColor = .init(tint: .white.withAlphaComponent(0.7))
+        material.emissiveColor = .init(color: .white)
+        material.emissiveIntensity = 0.5
+        
+        let lineEntity = ModelEntity(mesh: cylinder, materials: [material])
+        return lineEntity
+    }
+    
+    // MARK: - Update Bone Line
+    private func updateBoneLine(from parentPos: SIMD3<Float>, to childPos: SIMD3<Float>, entity: ModelEntity) {
+        let direction = childPos - parentPos
+        let distance = simd_length(direction)
+        
+        guard distance > 0.001 else {
+            entity.isEnabled = false
+            return
+        }
+        
+        entity.isEnabled = true
+        
+        // Position at midpoint
+        let midpoint = (parentPos + childPos) / 2.0
+        entity.position = midpoint
+        
+        // Scale to match distance
+        entity.scale = [1.0, distance, 1.0]
+        
+        // Rotate to align with direction
+        let up = SIMD3<Float>(0, 1, 0)
+        let normalizedDir = simd_normalize(direction)
+        
+        // Calculate rotation quaternion
+        let dot = simd_dot(up, normalizedDir)
+        if abs(dot - 1.0) < 0.001 {
+            // Already aligned
+            entity.orientation = simd_quatf(angle: 0, axis: [0, 0, 1])
+        } else if abs(dot + 1.0) < 0.001 {
+            // Opposite direction
+            entity.orientation = simd_quatf(angle: .pi, axis: [1, 0, 0])
+        } else {
+            let axis = simd_normalize(simd_cross(up, normalizedDir))
+            let angle = acos(dot)
+            entity.orientation = simd_quatf(angle: angle, axis: axis)
+        }
     }
     
     @MainActor
     private func setupAnimationFromCSV() async {
         do {
-            // Load all datasets
             print("📦 Loading datasets...")
             
             devicePoses = PoseCSVLoader.load(resource: "device_pose_data_3")
@@ -224,26 +238,26 @@ struct ImmersiveView: View {
             objectPoses = PoseCSVLoader.load(resource: "object_pose_data_4")
             print("✅ Loaded \(objectPoses.count) object poses")
             
-            handJointSamples = try await loadHandJointData(from: "hand_data_pivoted")
-            print("✅ Loaded \(handJointSamples.count) hand joint samples")
+            // Load complete skeleton data
+            skeletonJointSamples = SkeletonCSVLoader.load(resource: "complete_skeleton_data")
+            print("✅ Loaded \(skeletonJointSamples.count) complete skeleton samples")
             
-            skeletonJointSamples = SkeletonCSVLoader.load(resource: "calculated_skeleton_joints")
-            print("✅ Loaded \(skeletonJointSamples.count) skeleton joint samples")
-            
-            // === ESTABLISH GLOBAL ANCHOR ===
-            if let firstDevicePose = devicePoses.first {
-                globalAnchorPosition = firstDevicePose.p
-                globalAnchorRotation = firstDevicePose.q
-                print("🌍 Global anchor set at position: \(globalAnchorPosition)")
+            // === ESTABLISH ROOT ANCHOR ===
+            // Use the first root joint position as the local anchor
+            if let firstSample = skeletonJointSamples.first,
+               let rootPos = firstSample.joints[SkeletonHierarchy.rootJoint] {
+                rootAnchorPosition = rootPos
+                // For now, no rotation offset (identity quaternion)
+                rootAnchorRotation = simd_quatf()
+                print("🌍 Root anchor set at \(SkeletonHierarchy.rootJoint): \(rootAnchorPosition)")
                 
-                // Normalize all poses relative to this anchor
-                normalizeAllPosesToGlobalAnchor()
+                // Transform all skeleton data to be relative to root
+                normalizeSkeletonToRoot()
             }
             
-            // Set total time from the longest dataset
-            let handTime = handJointSamples.last?.t ?? 0
+            // Set total time
             let skeletonTime = skeletonJointSamples.last?.timestamp ?? 0
-            viewModel.totalTime = max(handTime, skeletonTime)
+            viewModel.totalTime = skeletonTime
             print("⏱️ Total animation time: \(viewModel.totalTime) seconds")
             
             // Start animation loop
@@ -256,84 +270,37 @@ struct ImmersiveView: View {
         }
     }
     
-    // MARK: - Load Hand Joint Data
-    private func loadHandJointData(from filename: String) async throws -> [HandJointSample] {
-        guard let url = Bundle.main.url(forResource: filename, withExtension: "csv"),
-              let csvData = try? String(contentsOf: url, encoding: .utf8) else {
-            throw NSError(domain: "CSV", code: 404, userInfo: [NSLocalizedDescriptionKey: "File not found"])
+    // MARK: - Normalize Skeleton to Root
+    private func normalizeSkeletonToRoot() {
+        // Transform all joint positions to be relative to the root joint
+        skeletonJointSamples = skeletonJointSamples.map { sample in
+            var normalizedJoints: [String: SIMD3<Float>] = [:]
+            
+            // Get the root position for this frame
+            guard let rootPos = sample.joints[SkeletonHierarchy.rootJoint] else {
+                return sample
+            }
+            
+            // Make all joints relative to root
+            for (jointName, worldPos) in sample.joints {
+                normalizedJoints[jointName] = worldPos - rootPos
+            }
+            
+            return SkeletonJointSample(
+                frame: sample.frame,
+                timestamp: sample.timestamp,
+                joints: normalizedJoints,
+                rotations: sample.rotations
+            )
         }
         
-        let rows = csvData.components(separatedBy: .newlines).map { $0.components(separatedBy: ",") }
-        guard rows.count > 1 else { throw NSError(domain: "CSV", code: 400, userInfo: nil) }
-        
-        let headers = rows[0].map { $0.trimmingCharacters(in: .whitespaces) }
-        var samples: [HandJointSample] = []
-        
-        let samplingRate = 2  // Reduced from 5 to 2 for smoother/faster animation
-        
-        for (index, row) in rows.dropFirst().enumerated() {
-            guard index % samplingRate == 0, row.count > 2 else { continue }
-            
-            var rowData: [String: String] = [:]
-            for (i, header) in headers.enumerated() {
-                if i < row.count {
-                    rowData[header] = row[i]
-                }
-            }
-            
-            guard let timeString = rowData["t_mono"],
-                  let time = Double(timeString),
-                  let chirality = rowData["chirality"]?.trimmingCharacters(in: .whitespaces).lowercased() else {
-                continue
-            }
-            
-            // Extract joint positions
-            var joints: [String: SIMD3<Float>] = [:]
-            
-            // Key joints to extract
-            let jointPrefixes = ["forearmWrist", "thumbTip", "indexFingerTip", "middleFingerTip",
-                                "ringFingerTip", "littleFingerTip",
-                                "thumbKnuckle", "indexFingerKnuckle", "middleFingerKnuckle",
-                                "ringFingerKnuckle", "littleFingerKnuckle"]
-            
-            for prefix in jointPrefixes {
-                if let px = Float(rowData["\(prefix)_px"] ?? ""),
-                   let py = Float(rowData["\(prefix)_py"] ?? ""),
-                   let pz = Float(rowData["\(prefix)_pz"] ?? "") {
-                    let position = SIMD3<Float>(px, py, pz)
-                    
-                    // Map to our sphere names
-                    var simpleName = prefix
-                        .replacingOccurrences(of: "forearmWrist", with: "wrist")
-                        .replacingOccurrences(of: "Finger", with: "")
-                        .replacingOccurrences(of: "Tip", with: "_tip")
-                        .replacingOccurrences(of: "Knuckle", with: "_knuckle")
-                        .replacingOccurrences(of: "little", with: "pinky")
-                        .lowercased()
-                    
-                    joints["\(chirality)_\(simpleName)"] = position
-                }
-            }
-            
-            samples.append(HandJointSample(t: time, chirality: chirality, joints: joints))
-        }
-        
-        // Normalize times
-        if let firstTime = samples.first?.t {
-            samples = samples.map {
-                HandJointSample(t: $0.t - firstTime, chirality: $0.chirality, joints: $0.joints)
-            }
-        }
-        
-        return samples
+        print("✅ Normalized \(skeletonJointSamples.count) samples to root anchor")
     }
     
     // MARK: - Start Animation Loop
     private func startAnimationLoop() {
-        // Invalidate any existing timer first
         animationTimer?.invalidate()
         
-        // Create and store the new timer
         animationTimer = Timer.scheduledTimer(withTimeInterval: 1.0/60.0, repeats: true) { timer in
             Task { @MainActor in
                 if !self.viewModel.isPlaying {
@@ -350,88 +317,47 @@ struct ImmersiveView: View {
                         rotation: devicePose.q,
                         translation: devicePose.p
                     )
-                    
-                    // Debug log every 60 frames (once per second)
-                    if Int(currentTime * 60) % 60 == 0 {
-                        print("🎯 t=\(String(format: "%.2f", currentTime)) | Device: \(devicePose.p)")
-                    }
                 }
                 
-                // Update objects - use absolute positions (already normalized)
+                // Update objects
                 for (anchorID, entity) in self.objectEntities {
                     let objectPosesForAnchor = self.objectPoses.filter { $0.anchorID == anchorID }
                     
                     if let objectPose = self.interpolatePose(from: objectPosesForAnchor, at: currentTime) {
-                        // Objects are already normalized to global anchor, use directly
                         entity.position = objectPose.p
                         entity.orientation = objectPose.q
-                        
-                        // Debug log once per second
-                        if Int(currentTime * 60) % 60 == 0 {
-                            print("📦 Object: \(objectPose.p)")
-                        }
                     }
                 }
                 
-                // Update hand joints - Try using RAW positions without normalization
-                if let jointSample = self.interpolateHandJoints(at: currentTime) {
-                    for (jointName, position) in jointSample.joints {
-                        if let sphere = self.jointSpheres[jointName] {
-                            // Use raw position (no normalization)
-                            sphere.position = position
-                            
-                            // Debug log wrist positions once per second
-                            if jointName.contains("wrist") && Int(currentTime * 60) % 60 == 0 {
-                                print("✋ \(jointName) RAW: \(position)")
-                            }
-                        }
-                    }
-                }
-                
-                // Update skeleton joints
+                // Update skeleton joints and bones
                 if let skeletonSample = self.interpolateSkeletonJoints(at: currentTime) {
-                    for (jointName, position) in skeletonSample.joints {
+                    // Update joint positions (these are already relative to root)
+                    for (jointName, relativePos) in skeletonSample.joints {
                         if let sphere = self.skeletonSpheres[jointName] {
-                            // Use raw position for skeleton joints
-                            sphere.position = position
+                            // Position is already relative to root anchor
+                            sphere.position = relativePos
+                        }
+                    }
+                    
+                    // Update bone lines
+                    let boneConnections = SkeletonHierarchy.getBoneConnections()
+                    for (parent, child) in boneConnections {
+                        if let parentPos = skeletonSample.joints[parent],
+                           let childPos = skeletonSample.joints[child],
+                           let boneLine = self.boneLineEntities["\(parent)_\(child)"] {
+                            self.updateBoneLine(from: parentPos, to: childPos, entity: boneLine)
+                        }
+                    }
+                    
+                    // Debug log once per second
+                    if Int(currentTime * 60) % 60 == 0 {
+                        if let rootPos = skeletonSample.joints[SkeletonHierarchy.rootJoint] {
+                            print("🦴 t=\(String(format: "%.2f", currentTime)) | Root: \(rootPos) | Joints: \(skeletonSample.joints.count)")
                         }
                     }
                 }
             }
         }
-    }
-    
-    // MARK: - Interpolate Hand Joints
-    private func interpolateHandJoints(at time: TimeInterval) -> HandJointSample? {
-        guard !handJointSamples.isEmpty else { return nil }
-        
-        var prevSample = handJointSamples.first!
-        var nextSample = handJointSamples.first!
-        
-        for i in 0..<handJointSamples.count {
-            if handJointSamples[i].t <= time {
-                prevSample = handJointSamples[i]
-            }
-            if handJointSamples[i].t >= time {
-                nextSample = handJointSamples[i]
-                break
-            }
-        }
-        
-        if prevSample.t == nextSample.t {
-            return prevSample
-        }
-        
-        let t = Float((time - prevSample.t) / (nextSample.t - prevSample.t))
-        var interpolatedJoints: [String: SIMD3<Float>] = [:]
-        
-        for (jointName, prevPos) in prevSample.joints {
-            if let nextPos = nextSample.joints[jointName] {
-                interpolatedJoints[jointName] = prevPos + (nextPos - prevPos) * t
-            }
-        }
-        
-        return HandJointSample(t: time, chirality: prevSample.chirality, joints: interpolatedJoints)
     }
     
     // MARK: - Interpolate Skeleton Joints
@@ -457,6 +383,7 @@ struct ImmersiveView: View {
         
         let t = Float((time - prevSample.timestamp) / (nextSample.timestamp - prevSample.timestamp))
         var interpolatedJoints: [String: SIMD3<Float>] = [:]
+        var interpolatedRotations: [String: simd_quatf] = [:]
         
         for (jointName, prevPos) in prevSample.joints {
             if let nextPos = nextSample.joints[jointName] {
@@ -464,28 +391,18 @@ struct ImmersiveView: View {
             }
         }
         
-        return SkeletonJointSample(frame: prevSample.frame, timestamp: time, joints: interpolatedJoints)
-    }
-    
-    // MARK: - Global Anchor Normalization
-    private func normalizeAllPosesToGlobalAnchor() {
-        let anchorInverse = simd_inverse(globalAnchorRotation)
-        
-        // Normalize device poses
-        devicePoses = devicePoses.map { pose in
-            let relativePos = anchorInverse.act(pose.p - globalAnchorPosition)
-            let relativeRot = anchorInverse * pose.q
-            return PoseSample(t: pose.t, p: relativePos, q: relativeRot, anchorID: pose.anchorID)
+        for (jointName, prevRot) in prevSample.rotations {
+            if let nextRot = nextSample.rotations[jointName] {
+                interpolatedRotations[jointName] = simd_slerp(prevRot, nextRot, t)
+            }
         }
         
-        // Normalize object poses
-        objectPoses = objectPoses.map { pose in
-            let relativePos = anchorInverse.act(pose.p - globalAnchorPosition)
-            let relativeRot = anchorInverse * pose.q
-            return PoseSample(t: pose.t, p: relativePos, q: relativeRot, anchorID: pose.anchorID)
-        }
-        
-        print("✅ All poses normalized to global anchor")
+        return SkeletonJointSample(
+            frame: prevSample.frame,
+            timestamp: time,
+            joints: interpolatedJoints,
+            rotations: interpolatedRotations
+        )
     }
     
     // MARK: - Pose Interpolation
