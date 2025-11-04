@@ -11,6 +11,7 @@
 		3186A60C2E8B462500D5CE57 /* lowpoly.usdz in Resources */ = {isa = PBXBuildFile; fileRef = 3186A60B2E8B462500D5CE57 /* lowpoly.usdz */; };
 		31A83D892E948E050002E65D /* hand_data_pivoted.csv in Resources */ = {isa = PBXBuildFile; fileRef = 31A83D882E948E050002E65D /* hand_data_pivoted.csv */; };
 		31B6E4492EB3C45300F6580B /* complete_skeleton_data.csv in Resources */ = {isa = PBXBuildFile; fileRef = 31B6E4482EB3C45300F6580B /* complete_skeleton_data.csv */; };
+		31B6E44D2EB96F2100F6580B /* device_pose_data_4.csv in Resources */ = {isa = PBXBuildFile; fileRef = 31B6E44C2EB96F2100F6580B /* device_pose_data_4.csv */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -19,6 +20,7 @@
 		3186A60B2E8B462500D5CE57 /* lowpoly.usdz */ = {isa = PBXFileReference; lastKnownFileType = file; path = lowpoly.usdz; sourceTree = "<group>"; };
 		31A83D882E948E050002E65D /* hand_data_pivoted.csv */ = {isa = PBXFileReference; lastKnownFileType = text; path = hand_data_pivoted.csv; sourceTree = "<group>"; };
 		31B6E4482EB3C45300F6580B /* complete_skeleton_data.csv */ = {isa = PBXFileReference; lastKnownFileType = text; path = complete_skeleton_data.csv; sourceTree = "<group>"; };
+		31B6E44C2EB96F2100F6580B /* device_pose_data_4.csv */ = {isa = PBXFileReference; lastKnownFileType = text; path = device_pose_data_4.csv; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -58,6 +60,7 @@
 			isa = PBXGroup;
 			children = (
 				31B6E4482EB3C45300F6580B /* complete_skeleton_data.csv */,
+				31B6E44C2EB96F2100F6580B /* device_pose_data_4.csv */,
 				31A83D882E948E050002E65D /* hand_data_pivoted.csv */,
 				3186A60B2E8B462500D5CE57 /* lowpoly.usdz */,
 				3186A5F32E8B45EE00D5CE57 /* Prototype */,
@@ -150,6 +153,7 @@
 				31B6E4492EB3C45300F6580B /* complete_skeleton_data.csv in Resources */,
 				31A83D892E948E050002E65D /* hand_data_pivoted.csv in Resources */,
 				3186A60C2E8B462500D5CE57 /* lowpoly.usdz in Resources */,
+				31B6E44D2EB96F2100F6580B /* device_pose_data_4.csv in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

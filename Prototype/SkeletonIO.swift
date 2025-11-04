@@ -194,12 +194,25 @@ enum SkeletonCSVLoader {
                 }
             }
             
-            // Left hand joints (starting after right hand data)
+            // Left hand joints (ONLY if data exists - check actual column count)
+            // Note: In your CSV, left hand data appears to be missing/empty
+            // Only left_elbow data exists at column 201
             if c.count > 203 {
-                if let pos = parsePosition((201, 202, 203)) { joints["left_elbow"] = pos }
-                if let pos = parsePosition((204, 205, 206)) { joints["left_wrist"] = pos }
+                // Try to parse left elbow (column 201-203)
+                if let pos = parsePosition((201, 202, 203)),
+                   pos.x != 0 || pos.y != 0 || pos.z != 0 { // Check if not all zeros
+                    joints["left_elbow"] = pos
+                }
+                
+                // Try left wrist (column 204-206)
+                if c.count > 206,
+                   let pos = parsePosition((204, 205, 206)),
+                   pos.x != 0 || pos.y != 0 || pos.z != 0 {
+                    joints["left_wrist"] = pos
+                }
             }
             
+            // Left hand finger joints - only parse if columns exist
             let leftHandJoints = [
                 ("left_thumbKnuckle", 207), ("left_thumbIntermediateBase", 214),
                 ("left_thumbIntermediateTip", 221), ("left_thumbTip", 228),
@@ -216,7 +229,9 @@ enum SkeletonCSVLoader {
             ]
             
             for (name, startIdx) in leftHandJoints {
-                if c.count > startIdx + 2, let pos = parsePosition((startIdx, startIdx + 1, startIdx + 2)) {
+                if c.count > startIdx + 2,
+                   let pos = parsePosition((startIdx, startIdx + 1, startIdx + 2)),
+                   pos.x != 0 || pos.y != 0 || pos.z != 0 { // Check if not empty
                     joints[name] = pos
                 }
             }
@@ -232,6 +247,24 @@ enum SkeletonCSVLoader {
         }
 
         print("✅ Loaded \(out.count) complete skeleton samples with \(out.first?.joints.count ?? 0) joints")
+        
+        // Debug: Show which joints we actually loaded
+        if let firstSample = out.first {
+            let leftJoints = firstSample.joints.keys.filter { $0.contains("left_") }
+            let rightJoints = firstSample.joints.keys.filter { $0.contains("right_") }
+            let coreJoints = firstSample.joints.keys.filter { !$0.contains("left_") && !$0.contains("right_") }
+            
+            print("📊 Joint breakdown:")
+            print("   Core skeleton: \(coreJoints.count) joints")
+            print("   Right side: \(rightJoints.count) joints")
+            print("   Left side: \(leftJoints.count) joints")
+            
+            if leftJoints.isEmpty {
+                print("⚠️ WARNING: No left hand/arm data found in CSV!")
+                print("   This is normal if only right hand was tracked during recording.")
+            }
+        }
+        
         return out
     }
 }
