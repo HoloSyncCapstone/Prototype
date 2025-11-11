@@ -1,0 +1,11 @@
+{
+  "pathsToIds" : {
+    "\/3davatar\/Sources\/3davatar\/3davatar.rkassets\/Scene.usda" : "C6485B72-CF8C-4C2B-AD9D-EBB8C7719C95",
+    "3davatar\/Sources\/3davatar\/3davatar.rkassets\/Scene.usda" : "8E1C54FE-76F4-478A-BBC9-D77F38BD8015"
+  },
+  "projectID" : -832308599539380446,
+  "uuidToIntID" : {
+    "8E1C54FE-76F4-478A-BBC9-D77F38BD8015" : 2553164773866558885,
+    "C6485B72-CF8C-4C2B-AD9D-EBB8C7719C95" : -5149464363436929948
+  }
+}

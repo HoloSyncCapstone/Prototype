@@ -1,0 +1,45 @@
+{
+  "4CC41490-6A08-4810-A29B-4A288469FD84" : {
+    "objectMetadataList" : [
+      [
+        "4CC41490-6A08-4810-A29B-4A288469FD84",
+        "root",
+        "claudeavatar"
+      ],
+      {
+        "isExpanded" : true,
+        "isLocked" : false
+      },
+      [
+        "4CC41490-6A08-4810-A29B-4A288469FD84",
+        "root",
+        "claudeavatar",
+        "Avatar_Armature"
+      ],
+      {
+        "isExpanded" : true,
+        "isLocked" : false
+      },
+      [
+        "4CC41490-6A08-4810-A29B-4A288469FD84",
+        "root"
+      ],
+      {
+        "isExpanded" : true,
+        "isLocked" : false
+      }
+    ]
+  },
+  "F8B8E338-C869-42A9-BB08-F5F9FB07CD30" : {
+    "objectMetadataList" : [
+      [
+        "F8B8E338-C869-42A9-BB08-F5F9FB07CD30",
+        "Root"
+      ],
+      {
+        "isExpanded" : true,
+        "isLocked" : false
+      }
+    ]
+  }
+}

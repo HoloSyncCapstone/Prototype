@@ -1,0 +1,13 @@
+{
+  "pathsToIds" : {
+    "\/3davatarjoints\/Sources\/3davatarjoints\/3davatarjoints.rkassets\/Scene.usda" : "14E1DE8B-8183-4A3E-BF6E-FE29DE22B1FA",
+    "3davatarjoints\/Sources\/3davatarjoints\/3davatarjoints.rkassets\/Scene.usda" : "F8B8E338-C869-42A9-BB08-F5F9FB07CD30",
+    "3davatarjoints\/Sources\/3davatarjoints\/3davatarjoints.rkassets\/final low poly character  rigged.usdc" : "4CC41490-6A08-4810-A29B-4A288469FD84"
+  },
+  "projectID" : -2719112580194137031,
+  "uuidToIntID" : {
+    "14E1DE8B-8183-4A3E-BF6E-FE29DE22B1FA" : 6536901017606488545,
+    "4CC41490-6A08-4810-A29B-4A288469FD84" : -5261416003405421610,
+    "F8B8E338-C869-42A9-BB08-F5F9FB07CD30" : -5117130816492522487
+  }
+}

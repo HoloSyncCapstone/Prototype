@@ -1,0 +1,44 @@
+{
+  "5B07780A-C2B0-486D-B9D7-EF4567F99F50" : {
+    "objectMetadataList" : [
+      [
+        "5B07780A-C2B0-486D-B9D7-EF4567F99F50",
+        "Root",
+        "racer_4",
+        "Armature"
+      ],
+      {
+        "isExpanded" : true,
+        "isLocked" : false
+      },
+      [
+        "5B07780A-C2B0-486D-B9D7-EF4567F99F50",
+        "Root",
+        "racer_4",
+        "Armature",
+        "Ch20"
+      ],
+      {
+        "isExpanded" : true,
+        "isLocked" : false
+      },
+      [
+        "5B07780A-C2B0-486D-B9D7-EF4567F99F50",
+        "Root",
+        "racer_4"
+      ],
+      {
+        "isExpanded" : true,
+        "isLocked" : false
+      },
+      [
+        "5B07780A-C2B0-486D-B9D7-EF4567F99F50",
+        "Root"
+      ],
+      {
+        "isExpanded" : true,
+        "isLocked" : false
+      }
+    ]
+  }
+}
