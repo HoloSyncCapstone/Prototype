@@ -34,6 +34,11 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		315572E72ECBF415008BF4A9 /* Data */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Data;
+			sourceTree = "<group>";
+		};
 		3186A5F32E8B45EE00D5CE57 /* Prototype */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
@@ -59,6 +64,7 @@
 		3186A5E82E8B45EE00D5CE57 = {
 			isa = PBXGroup;
 			children = (
+				315572E72ECBF415008BF4A9 /* Data */,
 				31B6E4662EB9E15E00F6580B /* object_pose_data.csv */,
 				31B6E4682EB9E15F00F6580B /* complete_skeleton_data.csv */,
 				31B6E46C2EB9E39A00F6580B /* hand_data_pivoted.csv */,
@@ -101,6 +107,7 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
+				315572E72ECBF415008BF4A9 /* Data */,
 				3186A5F32E8B45EE00D5CE57 /* Prototype */,
 			);
 			name = Prototype;

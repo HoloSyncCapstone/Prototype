@@ -23,6 +23,9 @@ class ViewModel: ObservableObject {
     @Published var currentTime: TimeInterval = 0.0
     @Published var totalTime: TimeInterval = 15.0
     
+    // MARK: - Audio Manager
+    let audioManager = AudioPlayerManager()
+    
     // MARK: - Properties
     let slowMotionFactor: Double = 0.25 // 25% speed when slow motion is on
     
@@ -64,18 +67,22 @@ class ViewModel: ObservableObject {
     // MARK: - Playback Control
     func togglePlayback() {
         isPlaying.toggle()
+        syncAudio() // Immediately sync audio state
     }
     
     func play() {
         isPlaying = true
+        syncAudio()
     }
     
     func pause() {
         isPlaying = false
+        syncAudio()
     }
     
     func rewind() {
         currentTime = 0.0
+        audioManager.seek(to: 0.0)
     }
     
     func toggleSlowMotion() {
@@ -97,6 +104,8 @@ class ViewModel: ObservableObject {
     
     func scrubTo(time: TimeInterval) {
         currentTime = min(max(0, time), totalTime)
+        // Sync audio when scrubbing
+        audioManager.seek(to: currentTime)
     }
     
     // MARK: - Computed Properties
@@ -104,7 +113,16 @@ class ViewModel: ObservableObject {
         return isSlowMotion ? slowMotionFactor : 1.0
     }
     
+    var playbackRate: Float {
+        return Float(playbackSpeed)
+    }
+    
     var progressPercentage: Double {
         return totalTime > 0 ? currentTime / totalTime : 0
+    }
+    
+    // MARK: - Audio Sync
+    func syncAudio() {
+        audioManager.sync(to: currentTime, isPlaying: isPlaying, playbackRate: playbackRate)
     }
 }

@@ -22,6 +22,10 @@ struct ImmersiveView: View {
     @State private var handJointSpheres: [String: ModelEntity] = [:]
     @State private var fingerLines: [String: ModelEntity] = [:]
     
+    // Subtitle state
+    @State private var subtitles: [SubtitleEntry] = []
+    @State private var currentSubtitle: String = ""
+    
     // Animation timer
     @State private var animationTimer: Timer?
     
@@ -29,20 +33,37 @@ struct ImmersiveView: View {
         RealityView { content, attachments in
             setupScene(content: content)
             
-            // Add playback controls
+            // Add playback controls (top center)
             if let controls = attachments.entity(for: "controls") {
                 controls.position = [0, 1.5, -1.5]
                 content.add(controls)
             }
             
+            // Add subtitles (below and to the right of controls)
+            if let subtitlesEntity = attachments.entity(for: "subtitles") {
+                subtitlesEntity.position = [0, 0.7, -1.5]
+                content.add(subtitlesEntity)
+            }
+            
             Task {
                 await loadDataAndSolveIK()
+                loadSubtitles()
+                loadAudio()
                 startAnimation()
             }
             
+        } update: { content, attachments in
+            // Update subtitle position to stay with controls
+            if let subtitlesEntity = attachments.entity(for: "subtitles") {
+                subtitlesEntity.position = [0, 0.7, -1.5]
+            }
         } attachments: {
             Attachment(id: "controls") {
                 PlaybackControlsView()
+            }
+            
+            Attachment(id: "subtitles") {
+                ImmersiveSubtitleView(text: currentSubtitle)
             }
         }
         .onDisappear {
@@ -427,6 +448,12 @@ struct ImmersiveView: View {
                 
                 // Update hand joints
                 updateHandJoints(at: currentTime)
+                
+                // Update subtitles
+                updateSubtitle(at: currentTime)
+                
+                // Sync audio playback
+                viewModel.syncAudio()
             }
         }
     }
@@ -624,5 +651,38 @@ struct ImmersiveView: View {
     
     private func lerp(_ a: SIMD3<Float>, _ b: SIMD3<Float>, _ t: Float) -> SIMD3<Float> {
         return a + (b - a) * t
+    }
+    
+    // MARK: - Audio Management
+    private func loadAudio() {
+        viewModel.audioManager.loadAudio(filename: "audio.wav", subdirectory: "Data/audio")
+    }
+    
+    // MARK: - Subtitle Management
+    private func loadSubtitles() {
+        do {
+            subtitles = try SubtitleLoader.loadFromJSON(filename: "timecoded_transcript")
+            print("✅ Loaded \(subtitles.count) subtitle entries")
+        } catch {
+            print("⚠️ Failed to load subtitles from file: \(error)")
+            print("📝 Using sample subtitles as fallback")
+            // Fall back to sample subtitles
+            subtitles = SubtitleLoader.createSampleSubtitles()
+            print("✅ Loaded \(subtitles.count) sample subtitle entries")
+        }
+    }
+    
+    private func updateSubtitle(at time: TimeInterval) {
+        // Find the subtitle that should be displayed at this time
+        if let activeSubtitle = subtitles.first(where: { $0.contains(time: time) }) {
+            if currentSubtitle != activeSubtitle.text {
+                currentSubtitle = activeSubtitle.text
+                print("💬 Subtitle: \(activeSubtitle.text)")
+            }
+        } else {
+            if !currentSubtitle.isEmpty {
+                currentSubtitle = ""
+            }
+        }
     }
 }

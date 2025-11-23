@@ -1,0 +1,32 @@
+[
+  {
+    "id": "00000000-0000-0000-0000-000000000001",
+    "start_time": 0.0,
+    "end_time": 3.0,
+    "text": "Welcome to the hand gesture demonstration"
+  },
+  {
+    "id": "00000000-0000-0000-0000-000000000002",
+    "start_time": 3.5,
+    "end_time": 6.5,
+    "text": "Watch carefully as the hand moves through different positions"
+  },
+  {
+    "id": "00000000-0000-0000-0000-000000000003",
+    "start_time": 7.0,
+    "end_time": 10.0,
+    "text": "The skeleton tracking follows every joint precisely"
+  },
+  {
+    "id": "00000000-0000-0000-0000-000000000004",
+    "start_time": 10.5,
+    "end_time": 14.0,
+    "text": "Notice the smooth interpolation between frames"
+  },
+  {
+    "id": "00000000-0000-0000-0000-000000000005",
+    "start_time": 14.5,
+    "end_time": 18.0,
+    "text": "This concludes the demonstration"
+  }
+]
