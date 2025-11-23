@@ -1,0 +1,96 @@
+[
+  {
+    "isFinal" : true,
+    "text" : "Bam, bam.",
+    "tokens" : [
+      {
+        "endSec" : 4.368763041666689,
+        "startSec" : 0.04876304166668888,
+        "text" : "Bam,"
+      },
+      {
+        "endSec" : 5.208763041666689,
+        "startSec" : 4.368763041666689,
+        "text" : " bam."
+      }
+    ]
+  },
+  {
+    "isFinal" : true,
+    "text" : " Wait, move around.",
+    "tokens" : [
+      {
+        "endSec" : 9.588763041666688,
+        "startSec" : 5.268763041666689,
+        "text" : " Wait,"
+      },
+      {
+        "endSec" : 9.828763041666688,
+        "startSec" : 9.588763041666688,
+        "text" : " move"
+      },
+      {
+        "endSec" : 10.488763041666688,
+        "startSec" : 9.828763041666688,
+        "text" : " around."
+      }
+    ]
+  },
+  {
+    "isFinal" : true,
+    "text" : " Like, move your shoulders around the side. Yeah.",
+    "tokens" : [
+      {
+        "endSec" : 11.088763041666688,
+        "startSec" : 10.668763041666688,
+        "text" : " Like,"
+      },
+      {
+        "endSec" : 11.148763041666689,
+        "startSec" : 11.088763041666688,
+        "text" : " move"
+      },
+      {
+        "endSec" : 11.328763041666688,
+        "startSec" : 11.148763041666689,
+        "text" : " your"
+      },
+      {
+        "endSec" : 11.68876304166669,
+        "startSec" : 11.328763041666688,
+        "text" : " shoulders"
+      },
+      {
+        "endSec" : 11.86876304166669,
+        "startSec" : 11.68876304166669,
+        "text" : " around"
+      },
+      {
+        "endSec" : 12.048763041666689,
+        "startSec" : 11.86876304166669,
+        "text" : " the"
+      },
+      {
+        "endSec" : 12.588763041666688,
+        "startSec" : 12.048763041666689,
+        "text" : " side."
+      },
+      {
+        "endSec" : 14.208763041666689,
+        "startSec" : 12.588763041666688,
+        "text" : " Yeah."
+      }
+    ]
+  },
+  {
+    "isFinal" : true,
+    "text" : " Okay.",
+    "tokens" : [
+      {
+        "endSec" : 18.04876304166669,
+        "startSec" : 14.50876304166669,
+        "text" : " Okay."
+      }
+    ]
+  }
+]
