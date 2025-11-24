@@ -30,7 +30,7 @@ struct ImmersiveView: View {
     @State private var globalAnchorPosition: SIMD3<Float> = .zero
     
     var body: some View {
-        RealityView { content, attachments in
+        RealityView { content in
             do {
                 // Lighting
                 let lightEntity = DirectionalLight()
@@ -38,12 +38,6 @@ struct ImmersiveView: View {
                 lightEntity.look(at: [0, 0, 0], from: lightEntity.position, relativeTo: nil)
                 lightEntity.light.intensity = 5000
                 content.add(lightEntity)
-                
-                // Add playback controls attachment
-                if let controlsEntity = attachments.entity(for: "controls") {
-                    controlsEntity.position = [0.8, 1.2, -2]
-                    content.add(controlsEntity)
-                }
                 
                 // Create device cube (white) - make it bigger and visible
                 let headsetBox = MeshResource.generateBox(size: [0.15, 0.10, 0.12])
@@ -87,10 +81,13 @@ struct ImmersiveView: View {
             } catch {
                 print("Failed to setup scene: \(error)")
             }
-        } attachments: {
-            Attachment(id: "controls") {
+        }
+        .overlay(alignment: .bottom) {
+            HStack(spacing: 20) {
+                ViewpointSelectorView(selectedViewpoint: $viewModel.selectedViewpoint)
                 PlaybackControlsView()
             }
+            .padding(20)
         }
     }
     

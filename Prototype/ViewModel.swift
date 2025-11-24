@@ -38,6 +38,7 @@ class ViewModel: ObservableObject {
     @Published var selectedSession: TrainingSession?
     @Published var isPlaying: Bool = false
     @Published var isSlowMotion: Bool = false
+    @Published var selectedViewpoint: Viewpoint = .thirdPerson
     @Published var currentTime: TimeInterval = 0.0
     @Published var totalTime: TimeInterval = 15.0
     

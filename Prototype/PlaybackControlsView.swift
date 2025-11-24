@@ -6,6 +6,17 @@ struct PlaybackControlsView: View {
 
     var body: some View {
         VStack(spacing: 16) {
+            HStack {
+                Button(action: {
+                    Task {
+                        await dismissImmersiveSpace()
+                    }
+                }) {
+                    Label("Back", systemImage: "chevron.backward")
+                }
+                .padding()
+                Spacer()
+            }
             // Header with session title
             if let session = viewModel.selectedSession {
                 Text(session.name)
