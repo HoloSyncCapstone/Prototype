@@ -39,6 +39,13 @@ class ViewModel: ObservableObject {
     @Published var isPlaying: Bool = false
     @Published var isSlowMotion: Bool = false
     @Published var selectedViewpoint: Viewpoint = .thirdPerson
+    @Published var keyMoments: [KeyMoment] = [
+        .init(title: "Initial Grip", description: "Establish proper hand position", time: 2, type: .location),
+        .init(title: "Needle Entry", description: "Critical 90° angle insertion", time: 5, type: .informational),
+        .init(title: "Thread Pull", description: "Maintain consistent tension", time: 9, type: .location),
+        .init(title: "Knot Formation", description: "Pay attention to finger positioning", time: 13, type: .warning),
+        .init(title: "Final Tightening", description: "Perfect technique demonstrated", time: 16, type: .success)
+    ]
     @Published var currentTime: TimeInterval = 0.0
     @Published var totalTime: TimeInterval = 15.0
     

@@ -83,8 +83,12 @@ struct ImmersiveView: View {
             }
         }
         .overlay(alignment: .bottom) {
-            HStack(spacing: 20) {
-                ViewpointSelectorView(selectedViewpoint: $viewModel.selectedViewpoint)
+            VStack {
+                HStack(alignment: .bottom, spacing: 20) {
+                    ViewpointSelectorView(selectedViewpoint: $viewModel.selectedViewpoint)
+                    Spacer()
+                    KeyMomentsView(keyMoments: viewModel.keyMoments, currentTime: $viewModel.currentTime)
+                }
                 PlaybackControlsView()
             }
             .padding(20)
