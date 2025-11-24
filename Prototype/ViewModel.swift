@@ -162,10 +162,13 @@ class ViewModel: ObservableObject {
         currentTime = min(max(0, time), totalTime)
     }
     
-    // MARK: - Computed Properties
-    var playbackSpeed: Double {
-        return isSlowMotion ? slowMotionFactor : 1.0
+    func forward() {
+        // Advance by 15 seconds or to the end
+        currentTime = min(currentTime + 15.0, totalTime)
     }
+
+    // MARK: - Playback Speed
+    @Published var playbackSpeed: Double = 1.0
     
     var progressPercentage: Double {
         return totalTime > 0 ? currentTime / totalTime : 0
