@@ -21,8 +21,8 @@ struct PrototypeApp: App {
         .immersionStyle(selection: $currentImmersionStyle, in: .mixed)
         
         // Holosphere Animation Space
-        ImmersiveSpace(id: "HolosphereSpace") {
-            HolosphereAnimationView()
+        ImmersiveSpace(id: "MotionReplaySpace") {
+            MotionReplayAnimationView()
         }
         .immersionStyle(selection: $currentImmersionStyle, in: .mixed)
     }

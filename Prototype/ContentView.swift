@@ -67,15 +67,15 @@ struct ContentView: View {
                     }
                     .disabled(immersiveSpaceState == .inTransition)
                     
-                    // Holosphere Integration Button
+                    // Motion Replay Button
                     Button(action: {
                         Task {
-                            await openHolosphereSpace()
+                            await openMotionReplaySpace()
                         }
                     }) {
                         HStack {
                             VStack(alignment: .leading) {
-                                Text("Holosphere Animation")
+                                Text("Motion Replay")
                                     .font(.title3)
                                     .fontWeight(.semibold)
                                 Text("Using IK & CSV Data (New Method)")
@@ -158,12 +158,12 @@ struct ContentView: View {
         }
     }
     
-    private func openHolosphereSpace() async {
+    private func openMotionReplaySpace() async {
         guard immersiveSpaceState == .closed else { return }
         
         immersiveSpaceState = .inTransition
         
-        let result = await openImmersiveSpace(id: "HolosphereSpace")
+        let result = await openImmersiveSpace(id: "MotionReplaySpace")
         switch result {
         case .opened:
             immersiveSpaceState = .open

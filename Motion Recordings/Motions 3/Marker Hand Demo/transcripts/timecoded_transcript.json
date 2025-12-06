@@ -1,0 +1,306 @@
+[
+  {
+    "isFinal" : true,
+    "text" : "Testing one, two, testing one, two.",
+    "tokens" : [
+      {
+        "endSec" : 1.6048545416666662,
+        "startSec" : 0.04485454166666614,
+        "text" : "Testing"
+      },
+      {
+        "endSec" : 1.8448545416666662,
+        "startSec" : 1.6048545416666662,
+        "text" : " one,"
+      },
+      {
+        "endSec" : 2.084854541666666,
+        "startSec" : 1.8448545416666662,
+        "text" : " two,"
+      },
+      {
+        "endSec" : 2.384854541666666,
+        "startSec" : 2.084854541666666,
+        "text" : " testing"
+      },
+      {
+        "endSec" : 2.564854541666666,
+        "startSec" : 2.384854541666666,
+        "text" : " one,"
+      },
+      {
+        "endSec" : 2.984854541666666,
+        "startSec" : 2.564854541666666,
+        "text" : " two."
+      }
+    ]
+  },
+  {
+    "isFinal" : true,
+    "text" : " You're currently watching a demo where the audio is being transcribed on screen and the fingers are being tracked.",
+    "tokens" : [
+      {
+        "endSec" : 3.2848545416666663,
+        "startSec" : 3.044854541666666,
+        "text" : " You're"
+      },
+      {
+        "endSec" : 3.344854541666666,
+        "startSec" : 3.2848545416666663,
+        "text" : " currently"
+      },
+      {
+        "endSec" : 3.584854541666666,
+        "startSec" : 3.344854541666666,
+        "text" : " watching"
+      },
+      {
+        "endSec" : 3.944854541666666,
+        "startSec" : 3.584854541666666,
+        "text" : " a"
+      },
+      {
+        "endSec" : 4.124854541666666,
+        "startSec" : 3.944854541666666,
+        "text" : " demo"
+      },
+      {
+        "endSec" : 4.304854541666666,
+        "startSec" : 4.124854541666666,
+        "text" : " where"
+      },
+      {
+        "endSec" : 4.424854541666666,
+        "startSec" : 4.304854541666666,
+        "text" : " the"
+      },
+      {
+        "endSec" : 4.4848545416666665,
+        "startSec" : 4.424854541666666,
+        "text" : " audio"
+      },
+      {
+        "endSec" : 4.664854541666666,
+        "startSec" : 4.4848545416666665,
+        "text" : " is"
+      },
+      {
+        "endSec" : 4.784854541666666,
+        "startSec" : 4.664854541666666,
+        "text" : " being"
+      },
+      {
+        "endSec" : 5.324854541666666,
+        "startSec" : 4.784854541666666,
+        "text" : " transcribed"
+      },
+      {
+        "endSec" : 5.4448545416666665,
+        "startSec" : 5.324854541666666,
+        "text" : " on"
+      },
+      {
+        "endSec" : 5.624854541666666,
+        "startSec" : 5.4448545416666665,
+        "text" : " screen"
+      },
+      {
+        "endSec" : 5.9848545416666665,
+        "startSec" : 5.624854541666666,
+        "text" : " and"
+      },
+      {
+        "endSec" : 6.104854541666666,
+        "startSec" : 5.9848545416666665,
+        "text" : " the"
+      },
+      {
+        "endSec" : 6.4048545416666665,
+        "startSec" : 6.104854541666666,
+        "text" : " fingers"
+      },
+      {
+        "endSec" : 6.524854541666667,
+        "startSec" : 6.4048545416666665,
+        "text" : " are"
+      },
+      {
+        "endSec" : 6.644854541666666,
+        "startSec" : 6.524854541666667,
+        "text" : " being"
+      },
+      {
+        "endSec" : 7.784854541666666,
+        "startSec" : 6.644854541666666,
+        "text" : " tracked."
+      }
+    ]
+  },
+  {
+    "isFinal" : true,
+    "text" : " Currently, I'm picking up a marker with my right hand, picking up one with my left hand, twisting around, backside of my hands, front side, and yeah.",
+    "tokens" : [
+      {
+        "endSec" : 8.204854541666666,
+        "startSec" : 7.844854541666666,
+        "text" : " Currently,"
+      },
+      {
+        "endSec" : 8.384854541666666,
+        "startSec" : 8.204854541666666,
+        "text" : " I'm"
+      },
+      {
+        "endSec" : 8.444854541666666,
+        "startSec" : 8.384854541666666,
+        "text" : " picking"
+      },
+      {
+        "endSec" : 8.624854541666666,
+        "startSec" : 8.444854541666666,
+        "text" : " up"
+      },
+      {
+        "endSec" : 8.804854541666666,
+        "startSec" : 8.624854541666666,
+        "text" : " a"
+      },
+      {
+        "endSec" : 8.984854541666666,
+        "startSec" : 8.804854541666666,
+        "text" : " marker"
+      },
+      {
+        "endSec" : 9.164854541666665,
+        "startSec" : 8.984854541666666,
+        "text" : " with"
+      },
+      {
+        "endSec" : 9.284854541666666,
+        "startSec" : 9.164854541666665,
+        "text" : " my"
+      },
+      {
+        "endSec" : 9.344854541666667,
+        "startSec" : 9.284854541666666,
+        "text" : " right"
+      },
+      {
+        "endSec" : 10.724854541666666,
+        "startSec" : 9.344854541666667,
+        "text" : " hand,"
+      },
+      {
+        "endSec" : 11.024854541666667,
+        "startSec" : 10.724854541666666,
+        "text" : " picking"
+      },
+      {
+        "endSec" : 11.264854541666667,
+        "startSec" : 11.024854541666667,
+        "text" : " up"
+      },
+      {
+        "endSec" : 11.384854541666666,
+        "startSec" : 11.264854541666667,
+        "text" : " one"
+      },
+      {
+        "endSec" : 11.624854541666666,
+        "startSec" : 11.384854541666666,
+        "text" : " with"
+      },
+      {
+        "endSec" : 11.684854541666667,
+        "startSec" : 11.624854541666666,
+        "text" : " my"
+      },
+      {
+        "endSec" : 11.804854541666666,
+        "startSec" : 11.684854541666667,
+        "text" : " left"
+      },
+      {
+        "endSec" : 12.164854541666665,
+        "startSec" : 11.804854541666666,
+        "text" : " hand,"
+      },
+      {
+        "endSec" : 12.644854541666666,
+        "startSec" : 12.164854541666665,
+        "text" : " twisting"
+      },
+      {
+        "endSec" : 13.004854541666667,
+        "startSec" : 12.644854541666666,
+        "text" : " around,"
+      },
+      {
+        "endSec" : 13.784854541666666,
+        "startSec" : 13.004854541666667,
+        "text" : " backside"
+      },
+      {
+        "endSec" : 13.904854541666666,
+        "startSec" : 13.784854541666666,
+        "text" : " of"
+      },
+      {
+        "endSec" : 13.964854541666666,
+        "startSec" : 13.904854541666666,
+        "text" : " my"
+      },
+      {
+        "endSec" : 14.144854541666666,
+        "startSec" : 13.964854541666666,
+        "text" : " hands,"
+      },
+      {
+        "endSec" : 14.504854541666667,
+        "startSec" : 14.144854541666666,
+        "text" : " front"
+      },
+      {
+        "endSec" : 14.804854541666666,
+        "startSec" : 14.504854541666667,
+        "text" : " side,"
+      },
+      {
+        "endSec" : 14.924854541666667,
+        "startSec" : 14.804854541666666,
+        "text" : " and"
+      },
+      {
+        "endSec" : 15.464854541666666,
+        "startSec" : 14.924854541666667,
+        "text" : " yeah."
+      }
+    ]
+  },
+  {
+    "isFinal" : true,
+    "text" : " Thanks, guys, for watching.",
+    "tokens" : [
+      {
+        "endSec" : 17.564854541666666,
+        "startSec" : 15.524854541666667,
+        "text" : " Thanks,"
+      },
+      {
+        "endSec" : 17.684854541666667,
+        "startSec" : 17.564854541666666,
+        "text" : " guys,"
+      },
+      {
+        "endSec" : 17.744854541666665,
+        "startSec" : 17.684854541666667,
+        "text" : " for"
+      },
+      {
+        "endSec" : 17.984854541666667,
+        "startSec" : 17.744854541666665,
+        "text" : " watching."
+      }
+    ]
+  }
+]
