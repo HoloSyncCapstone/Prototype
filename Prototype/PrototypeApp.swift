@@ -19,5 +19,11 @@ struct PrototypeApp: App {
                 .environmentObject(viewModel)
         }
         .immersionStyle(selection: $currentImmersionStyle, in: .mixed)
+        
+        // Holosphere Animation Space
+        ImmersiveSpace(id: "HolosphereSpace") {
+            HolosphereAnimationView()
+        }
+        .immersionStyle(selection: $currentImmersionStyle, in: .mixed)
     }
 }

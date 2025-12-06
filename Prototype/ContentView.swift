@@ -36,14 +36,63 @@ struct ContentView: View {
                 
                 // Training Sessions
                 VStack(spacing: 16) {
-                    ForEach(viewModel.trainingSessions) { session in
-                        SessionCard(session: session) {
-                            Task {
-                                await selectSession(session)
+                    // Original Prototype Animation Button
+                    Button(action: {
+                        Task {
+                            // Select the first session as default for the original method
+                            if let firstSession = viewModel.trainingSessions.first {
+                                viewModel.selectSession(firstSession)
+                                await openSpace()
                             }
                         }
-                        .disabled(immersiveSpaceState == .inTransition)
+                    }) {
+                        HStack {
+                            VStack(alignment: .leading) {
+                                Text("Original Prototype Animation")
+                                    .font(.title3)
+                                    .fontWeight(.semibold)
+                                Text("Using CharacterAnimator & FullBodyIK")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Image(systemName: "figure.walk")
+                                .font(.system(size: 40))
+                                .foregroundStyle(.blue.gradient)
+                        }
+                        .padding()
+                        .background(.regularMaterial)
+                        .hoverEffect(.highlight)
+                        .clipShape(RoundedRectangle(cornerRadius: 16))
                     }
+                    .disabled(immersiveSpaceState == .inTransition)
+                    
+                    // Holosphere Integration Button
+                    Button(action: {
+                        Task {
+                            await openHolosphereSpace()
+                        }
+                    }) {
+                        HStack {
+                            VStack(alignment: .leading) {
+                                Text("Holosphere Animation")
+                                    .font(.title3)
+                                    .fontWeight(.semibold)
+                                Text("Using IK & CSV Data (New Method)")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Image(systemName: "cube.transparent")
+                                .font(.system(size: 40))
+                                .foregroundStyle(.purple.gradient)
+                        }
+                        .padding()
+                        .background(.regularMaterial)
+                        .hoverEffect(.highlight)
+                        .clipShape(RoundedRectangle(cornerRadius: 16))
+                    }
+                    .disabled(immersiveSpaceState == .inTransition)
                 }
                 .padding(.horizontal)
                 
@@ -106,6 +155,29 @@ struct ContentView: View {
         @unknown default:
             immersiveSpaceState = .closed
             viewModel.closeSession()
+        }
+    }
+    
+    private func openHolosphereSpace() async {
+        guard immersiveSpaceState == .closed else { return }
+        
+        immersiveSpaceState = .inTransition
+        
+        let result = await openImmersiveSpace(id: "HolosphereSpace")
+        switch result {
+        case .opened:
+            immersiveSpaceState = .open
+            isShowingImmersiveSpace = true
+            // Dismiss this window after immersive space opens
+            dismissWindow(id: "main")
+        case .error:
+            immersiveSpaceState = .closed
+            print("Failed to open immersive space")
+        case .userCancelled:
+            immersiveSpaceState = .closed
+            print("User cancelled opening immersive space")
+        @unknown default:
+            immersiveSpaceState = .closed
         }
     }
     
