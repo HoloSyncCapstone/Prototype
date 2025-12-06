@@ -37,6 +37,24 @@ struct SubtitleEntry: Codable, Identifiable {
 // MARK: - Subtitle Loader
 class SubtitleLoader {
     
+    /// Load subtitles from a specific URL
+    static func loadFromURL(_ url: URL) throws -> [SubtitleEntry] {
+        print("🔍 Loading subtitles from: \(url.path)")
+        
+        let data = try Data(contentsOf: url)
+        let decoder = JSONDecoder()
+        
+        // Try to decode as TranscriptSegment array (new format)
+        if let segments = try? decoder.decode([TranscriptSegment].self, from: data) {
+            return convertSegmentsToSubtitles(segments)
+        }
+        
+        // Fall back to direct SubtitleEntry decoding (old format)
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let entries = try decoder.decode([SubtitleEntry].self, from: data)
+        return entries.sorted { $0.startTime < $1.startTime }
+    }
+
     /// Load subtitles from timecoded JSON file with token-based timing
     static func loadFromJSON(filename: String) throws -> [SubtitleEntry] {
         // Try multiple approaches to find the file

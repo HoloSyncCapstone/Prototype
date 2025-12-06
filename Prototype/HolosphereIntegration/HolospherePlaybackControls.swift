@@ -27,6 +27,16 @@ struct HolospherePlaybackControls: View {
                 
                 Spacer()
                 
+                // Subtitle Toggle
+                Button(action: { viewModel.showSubtitles.toggle() }) {
+                    Label(viewModel.showSubtitles ? "Hide CC" : "Show CC", systemImage: viewModel.showSubtitles ? "captions.bubble.fill" : "captions.bubble")
+                        .font(.title3)
+                        .padding(8)
+                }
+                .buttonStyle(.plain)
+                .glassBackgroundEffect()
+                .padding(.trailing, 10)
+                
                 Button(action: {
                     // Just dismiss the immersive space to return to the main menu
                     Task {
@@ -57,6 +67,19 @@ struct HolospherePlaybackControls: View {
             }
             
             Spacer()
+            
+            // Subtitles Display
+            if viewModel.showSubtitles && !viewModel.currentSubtitle.isEmpty {
+                Text(viewModel.currentSubtitle)
+                    .font(.extraLargeTitle)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.white)
+                    .padding()
+                    .background(.black.opacity(0.6))
+                    .cornerRadius(16)
+                    .padding(.bottom, 20)
+                    .transition(.opacity)
+            }
             
             // Controls Container
             VStack(spacing: 20) { // Increased spacing

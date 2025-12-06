@@ -91,7 +91,7 @@ struct HolosphereAnimationView: View {
     private let scaleEstimate: Float = 1.0
     private let flipZ: Bool = true
     private let isMayaModel: Bool = true
-    private let limitFrames: Bool = true
+    private let limitFrames: Bool = false
     
     var body: some View {
         ZStack {
@@ -164,7 +164,7 @@ struct HolosphereAnimationView: View {
                         
                         // 3️⃣ Load motion-capture CSVs from Selected Session
                         guard let session = viewModel.selectedSession else {
-                            print("❌ No session selected")
+                            print("❌  selected")
                             await MainActor.run { viewModel.loadingStatus = "Error: No Session" }
                             return
                         }

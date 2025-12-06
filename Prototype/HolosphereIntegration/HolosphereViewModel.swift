@@ -37,6 +37,7 @@ struct HolosphereSession: Identifiable, Hashable {
     let handCSV: URL
     let handGlobalCSV: URL
     let videoURL: URL
+    let transcriptURL: URL?
 }
 
 @MainActor
@@ -57,6 +58,11 @@ class HolosphereViewModel: ObservableObject {
     @Published var isPlaying: Bool = false
     @Published var fps: Double = 30.0
     @Published var playbackSpeed: Double = 2.2
+    
+    // MARK: - Subtitles
+    @Published var subtitles: [SubtitleEntry] = []
+    @Published var currentSubtitle: String = ""
+    @Published var showSubtitles: Bool = false
     
     // MARK: - Loading State
     @Published var isLoading: Bool = true
@@ -86,8 +92,44 @@ class HolosphereViewModel: ObservableObject {
     // MARK: - Session Logic
     func scanForSessions() {
         let fileManager = FileManager.default
-        // Updated path: Moved to project root (parent of Prototype folder)
-        let rootPath = "/Users/Patron/Documents/Code/Holosync Final/Prototype/Motion Recordings"
+        
+        // Dynamic path resolution
+        var rootPath: String?
+        
+        // 1. Try App Bundle (for deployed app)
+        if let bundlePath = Bundle.main.path(forResource: "Motion Recordings", ofType: nil) {
+            rootPath = bundlePath
+            print("📂 Found Motion Recordings in Bundle: \(bundlePath)")
+        } 
+        // 2. Try Source Directory (for Debugging in Simulator/Xcode)
+        else {
+            // #file is .../Prototype/Prototype/HolosphereIntegration/HolosphereViewModel.swift
+            let currentFileURL = URL(fileURLWithPath: #file)
+            let integrationDir = currentFileURL.deletingLastPathComponent() // .../HolosphereIntegration
+            let innerPrototypeDir = integrationDir.deletingLastPathComponent() // .../Prototype (inner)
+            let outerPrototypeDir = innerPrototypeDir.deletingLastPathComponent() // .../Prototype (outer)
+            
+            // Check inner Prototype folder
+            let path1 = innerPrototypeDir.appendingPathComponent("Motion Recordings").path
+            // Check outer Prototype folder
+            let path2 = outerPrototypeDir.appendingPathComponent("Motion Recordings").path
+            
+            if fileManager.fileExists(atPath: path1) {
+                rootPath = path1
+                print("📂 Found Motion Recordings in Inner Source: \(path1)")
+            } else if fileManager.fileExists(atPath: path2) {
+                rootPath = path2
+                print("📂 Found Motion Recordings in Outer Source: \(path2)")
+            } else {
+                // 3. Fallback to hardcoded (just in case, but likely to fail on other machines)
+                // rootPath = "/Users/Patron/Documents/Code/Holosync Final/Prototype/Motion Recordings"
+                print("❌ Could not find Motion Recordings folder in Bundle or Source paths.")
+                print("   Checked: \(path1)")
+                print("   Checked: \(path2)")
+            }
+        }
+        
+        guard let directory = rootPath else { return }
         
         var sessionsFound: [HolosphereSession] = []
         
@@ -105,6 +147,10 @@ class HolosphereViewModel: ObservableObject {
                 let handsWorldPath = (trackingPath as NSString).appendingPathComponent("hand_pose_world.csv")
                 let videoRightPath = (videoPath as NSString).appendingPathComponent("camera_right.mov")
                 
+                // Check for transcript (optional)
+                let transcriptPath = (directory as NSString).appendingPathComponent("transcript.json")
+                let transcriptURL = fileManager.fileExists(atPath: transcriptPath) ? URL(fileURLWithPath: transcriptPath) : nil
+                
                 if fileManager.fileExists(atPath: headPath) &&
                    fileManager.fileExists(atPath: handsLocalPath) &&
                    fileManager.fileExists(atPath: handsWorldPath) &&
@@ -120,7 +166,8 @@ class HolosphereViewModel: ObservableObject {
                         headCSV: URL(fileURLWithPath: headPath),
                         handCSV: URL(fileURLWithPath: handsLocalPath),
                         handGlobalCSV: URL(fileURLWithPath: handsWorldPath),
-                        videoURL: URL(fileURLWithPath: videoRightPath)
+                        videoURL: URL(fileURLWithPath: videoRightPath),
+                        transcriptURL: transcriptURL
                     )
                     sessionsFound.append(session)
                     return 
@@ -135,7 +182,7 @@ class HolosphereViewModel: ObservableObject {
             }
         }
         
-        findSessions(in: rootPath)
+        findSessions(in: directory)
         self.sessions = sessionsFound.sorted(by: { $0.name < $1.name })
         
         if selectedSession == nil, let first = sessions.first {
@@ -151,6 +198,18 @@ class HolosphereViewModel: ObservableObject {
         
         rightPlayer.replaceCurrentItem(with: AVPlayerItem(url: session.videoURL))
         currentFrame = 0
+        
+        // Load subtitles
+        subtitles = []
+        currentSubtitle = ""
+        if let url = session.transcriptURL {
+            do {
+                subtitles = try SubtitleLoader.loadFromURL(url)
+                print("✅ Loaded \(subtitles.count) subtitles")
+            } catch {
+                print("⚠️ Failed to load subtitles: \(error)")
+            }
+        }
     }
     
     // MARK: - Setup
@@ -266,6 +325,20 @@ class HolosphereViewModel: ObservableObject {
                 if videoSelection != .none {
                     leftPlayer.rate = 1.0
                     rightPlayer.rate = 1.0
+                }
+            }
+        }
+        
+        // Update subtitles
+        if showSubtitles {
+            let currentTime = Double(currentFrame) / fps
+            if let entry = subtitles.first(where: { $0.contains(time: currentTime) }) {
+                if currentSubtitle != entry.text {
+                    currentSubtitle = entry.text
+                }
+            } else {
+                if !currentSubtitle.isEmpty {
+                    currentSubtitle = ""
                 }
             }
         }
