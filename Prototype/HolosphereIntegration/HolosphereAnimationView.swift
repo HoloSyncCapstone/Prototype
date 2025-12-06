@@ -101,13 +101,29 @@ struct HolosphereAnimationView: View {
                 
                 // Add controls attachment
                 if let controls = attachments.entity(for: "controls") {
-                    // Position controls to the left and up
-                    controls.position = [-0.6, 1.2, -1.5]
+                    // Create a parent entity for the controls and the drag handle
+                    let controlsParent = Entity()
+                    controlsParent.position = [-0.6, 1.2, -1.5]
                     
-                    // Note: Removed InputTargetComponent/CollisionComponent from controls 
-                    // to ensure SwiftUI buttons remain interactive.
+                    // Add controls to the parent (centered)
+                    controls.position = [0, 0, 0]
+                    controlsParent.addChild(controls)
                     
-                    content.add(controls)
+                    // Create a drag handle (Capsule below the menu)
+                    let handleMesh = MeshResource.generateBox(size: [0.4, 0.05, 0.05], cornerRadius: 0.025)
+                    let handleMat = SimpleMaterial(color: .white.withAlphaComponent(0.5), isMetallic: false)
+                    let dragHandle = ModelEntity(mesh: handleMesh, materials: [handleMat])
+                    
+                    // Position handle below the menu
+                    dragHandle.position = [0, -0.5, 0]
+                    dragHandle.name = "DragHandle"
+                    
+                    // Make handle interactive
+                    dragHandle.components.set(InputTargetComponent())
+                    dragHandle.components.set(CollisionComponent(shapes: [.generateBox(size: [0.4, 0.1, 0.1])]))
+                    
+                    controlsParent.addChild(dragHandle)
+                    content.add(controlsParent)
                 }
                 
                 Task {
@@ -126,6 +142,9 @@ struct HolosphereAnimationView: View {
                         dummyAvatar.components.set(InputTargetComponent())
                         dummyAvatar.components.set(CollisionComponent(shapes: [.generateBox(size: [0.5, 2.0, 0.5])]))
                         
+                        // Show during loading (user request)
+                        dummyAvatar.isEnabled = true
+                        
                         world.addChild(dummyAvatar)
                         
                         guard let skinned = findSkinnedNode(in: dummyAvatar),
@@ -143,20 +162,18 @@ struct HolosphereAnimationView: View {
                             viewModel.loadingProgress = 0.3
                         }
                         
-                        // 3️⃣ Load motion-capture CSVs
-                        var headPath = Bundle.main.path(forResource: "device_pose_01", ofType: "csv")
-                        var handPath = Bundle.main.path(forResource: "hand_pose_merged", ofType: "csv")
-                        var handGlobalPath = Bundle.main.path(forResource: "hand_pose_world_01", ofType: "csv")
-                        
-                        if headPath == nil { headPath = Bundle.main.path(forResource: "device_pose_01", ofType: "csv", inDirectory: "Data/tracking") }
-                        if handPath == nil { handPath = Bundle.main.path(forResource: "hand_pose_merged", ofType: "csv", inDirectory: "Data/tracking") }
-                        if handGlobalPath == nil { handGlobalPath = Bundle.main.path(forResource: "hand_pose_world_01", ofType: "csv", inDirectory: "Data/tracking") }
-
-                        guard let headPath = headPath, let handPath = handPath, let handGlobalPath = handGlobalPath else {
-                            print("❌ Missing CSVs")
-                            await MainActor.run { viewModel.loadingStatus = "Error: Missing CSVs" }
+                        // 3️⃣ Load motion-capture CSVs from Selected Session
+                        guard let session = viewModel.selectedSession else {
+                            print("❌ No session selected")
+                            await MainActor.run { viewModel.loadingStatus = "Error: No Session" }
                             return
                         }
+                        
+                        let headPath = session.headCSV.path
+                        let handPath = session.handCSV.path
+                        let handGlobalPath = session.handGlobalCSV.path
+                        
+                        print("📂 Loading session: \(session.name)")
                         
                         let headFrames = HeadPoseLoader.load(from: headPath)
                         await MainActor.run { viewModel.loadingProgress = 0.5 }
@@ -176,6 +193,57 @@ struct HolosphereAnimationView: View {
                             if dt > 0 {
                                 detectedFPS = 1.0 / dt
                                 print("✅ Detected FPS: \(detectedFPS)")
+                                
+                                // Fix for slow motion:
+                                // If detected FPS is very high (e.g. > 100), it might be raw sensor data.
+                                // If it's around 60, it's likely 60fps.
+                                // If the video is 30fps, and we play 60fps data at 30fps, it will be 0.5x speed.
+                                // The ViewModel uses 'fps' to calculate frame index from time: frame = time * fps.
+                                // So if we pass the TRUE recording FPS (e.g. 60), then at t=1s, frame=60.
+                                // This is correct.
+                                
+                                // However, if the user says it looks "slow motion", it implies we are NOT advancing frames fast enough.
+                                // This happens if 'detectedFPS' is LOWER than the actual recording rate.
+                                // OR if the video is playing faster than real time (unlikely).
+                                
+                                // Let's trust the timestamp delta, but ensure it's sane.
+                                if detectedFPS < 10 { detectedFPS = 30.0 } // Fallback for bad data
+                            }
+                        }
+                        
+                        // FORCE FPS override if needed (User reported slow motion)
+                        // If the data is actually 60fps but we detect 30, it would play at half speed?
+                        // No, if we detect 30, at t=1s we show frame 30. If data is 60fps, frame 30 is t=0.5s.
+                        // So we show t=0.5s at t=1s. That IS slow motion.
+                        // So the issue is likely that 'detectedFPS' is calculating ~30 when it should be ~60,
+                        // OR the timestamps in the CSV are not in seconds (e.g. milliseconds).
+                        
+                        // Let's check the CSV timestamps.
+                        // If tMono is in milliseconds, dt would be ~16.6 (for 60fps).
+                        // 1.0 / 16.6 = 0.06 FPS. That would be super slow.
+                        
+                        // If the user says "slow motion", it's likely we are underestimating the FPS.
+                        // Let's try to be more robust or allow manual override.
+                        // For now, let's assume the data might be 60fps if it looks slow.
+                        
+                        // Actually, let's look at the code again.
+                        // detectedFPS = 1.0 / dt.
+                        // If dt is correct (e.g. 0.016s), fps is 60.
+                        // If dt is 0.033s, fps is 30.
+                        
+                        // If the user sees slow motion, maybe the video is 30fps but the animation is 60fps,
+                        // and we are playing the animation at 30fps?
+                        // No, we sync by time.
+                        
+                        // Let's try forcing 60 FPS if it's close to 60, or just trust the calculation.
+                        // But wait, if the timestamps are noisy, the first frame delta might be wrong.
+                        // Better to average over a few frames.
+                        
+                        if headFrames.count > 10 {
+                            let dt = (headFrames[10].tMono - headFrames[0].tMono) / 10.0
+                            if dt > 0 {
+                                detectedFPS = 1.0 / dt
+                                print("✅ Average FPS (10 frames): \(detectedFPS)")
                             }
                         }
                         
@@ -222,23 +290,6 @@ struct HolosphereAnimationView: View {
                         leftForeArmTarget.name = "left_forearm_target"
                         rightForeArmTarget.name = "right_forearm_target"
                         
-                        var greenMat = SimpleMaterial()
-                        var blueMat = SimpleMaterial()
-                        var redMat = SimpleMaterial()
-                        var pinkMat = SimpleMaterial()
-                        var cyanMat = SimpleMaterial()
-                        redMat.baseColor = .color(.red)
-                        greenMat.baseColor = .color(.green)
-                        blueMat.baseColor = .color(.blue)
-                        pinkMat.baseColor = .color(.purple)
-                        cyanMat.baseColor = .color(.cyan)
-                        let mesh = MeshResource.generateCone(height: 0.2, radius: 0.05)
-                        let sphere1 = ModelEntity(mesh: mesh, materials: [redMat])
-                        let sphere2 = ModelEntity(mesh: mesh, materials: [greenMat])
-                        let sphere3 = ModelEntity(mesh: mesh, materials: [blueMat])
-                        let sphere4 = ModelEntity(mesh: mesh, materials: [pinkMat])
-                        let sphere5 = ModelEntity(mesh: mesh, materials: [cyanMat])
-                        
                         // Parent targets to the avatar so they move with it
                         dummyAvatar.addChild(leftHandTarget)
                         dummyAvatar.addChild(rightHandTarget)
@@ -246,16 +297,23 @@ struct HolosphereAnimationView: View {
                         dummyAvatar.addChild(headTarget)
                         dummyAvatar.addChild(leftForeArmTarget)
                         dummyAvatar.addChild(rightForeArmTarget)
-                        
-                        headTarget.addChild(sphere1)
-                        leftHandTarget.addChild(sphere2)
-                        rightHandTarget.addChild(sphere3)
-                        leftForeArmTarget.addChild(sphere4)
-                        rightForeArmTarget.addChild(sphere4)
+
                         
                         // Initialize hips position (relative to avatar)
                         hipsTarget.position = [0, 0, 0]
-                        headTarget.position = [0, 1.6, 0]
+                        
+                        // Calculate initial head offset to prevent leaning
+                        var headOffset = SIMD3<Float>(0, 0, 0)
+                        // Reverting centering logic as it caused "sideways hip" issue.
+                        // The "lean" on load is now handled by hiding the avatar until play.
+                        /*
+                        if !headFrames.isEmpty {
+                            let firstFrame = headFrames[0]
+                            // We only want to cancel out X and Z translation (centering the model)
+                            // We keep Y so the height is correct relative to the floor
+                            headOffset = SIMD3<Float>(firstFrame.position.x, 0, firstFrame.position.z)
+                        }
+                        */
                         
                         // 7️⃣ Set up IK
                         if let ikRes = IKhelper.set_humanoidIK(model: dummyAvatar) {
@@ -331,7 +389,11 @@ struct HolosphereAnimationView: View {
                             def.jointNames = jointNames
                             do {
                                 animResource = try AnimationResource.generate(with: def)
-                                // skinned.playAnimation(anim.repeat(count: 1000), transitionDuration: 0.1)
+                                // Initialize controller immediately and pause it to prevent initial jitter
+                                if let res = animResource {
+                                    animController = skinned.playAnimation(res, transitionDuration: 0)
+                                    animController?.speed = 0
+                                }
                                 print("✅ Animation resource generated")
                             } catch {
                                 print("❌ Animation error:", error)
@@ -382,10 +444,100 @@ struct HolosphereAnimationView: View {
                                  dummyAvatar.components.set(ikComponent)
                                  print("✅ IK constraints configured")
                                  
+                                 // --- FIX INITIAL POSE ---
+                                 // Force update targets to Frame 0 immediately
+                                 if !headFrames.isEmpty {
+                                     let h = headFrames[0]
+                                     // Apply offset
+                                     let centeredPos = h.position // - headOffset (Reverted)
+                                     headTarget.position = centeredPos * scaleEstimate
+                                 }
+                                 
+                                 if let leftData = handGlobalData["left"],
+                                    let leftWristSamples = leftData["forearmWrist"],
+                                    let leftForearmSamples = leftData["forearmArm"],
+                                    !leftWristSamples.isEmpty {
+                                     let s = leftWristSamples[0]
+                                     let s2 = leftForearmSamples[0]
+                                     
+                                     // Apply offset
+                                     var pos = (s.position) * scaleEstimate // - headOffset (Reverted)
+                                     var pos2 = (s2.position) * scaleEstimate // - headOffset (Reverted)
+                                     
+                                     if flipZ {
+                                         pos.z = -pos.z
+                                         pos.x = -pos.x
+                                         pos2.z = -pos2.z
+                                         pos2.x = -pos2.x
+                                     }
+                                     leftHandTarget.position = pos
+                                     leftForeArmTarget.position = pos2
+                                     
+                                     if let r = s.rotation {
+                                         var rot = r
+                                         if flipZ {
+                                             rot = isMayaModel ? simd_quatf(ix: -r.imag.x, iy: r.imag.y, iz: -r.imag.z, r: r.real) : simd_quatf(ix: r.imag.x, iy: r.imag.y, iz: r.imag.z, r: r.real)
+                                         }
+                                         leftHandTarget.orientation = simd_normalize(rot)
+                                     }
+                                 }
+                                                                // Update right hand target from CSV data
+                                if let rightData = handGlobalData["right"],
+                                     let rightWristSamples = rightData["forearmWrist"],
+                                     !rightWristSamples.isEmpty {
+                                     // Safety check for index
+                                     let idx = 0
+                                     let s = rightWristSamples[idx]
+                                     
+                                     // Apply offset
+                                     var pos = (s.position) * scaleEstimate // - headOffset (Reverted)
+                                     
+                                     if flipZ {
+                                         pos.z = -pos.z
+                                         pos.x = -pos.x
+                                     }
+                                     rightHandTarget.position = pos
+                                     
+                                     if let r = s.rotation {
+                                         var rot = r
+                                         if flipZ {
+                                             rot = isMayaModel ? simd_quatf(ix: -r.imag.x, iy: r.imag.y, iz: -r.imag.z, r: r.real) : simd_quatf(ix: r.imag.x, iy: r.imag.y, iz: r.imag.z, r: r.real)
+                                         }
+                                         rightHandTarget.orientation = simd_normalize(rot)
+                                     }
+                                 }
+                                 
+                                 // Apply these new positions to the IK Solver immediately
+                                 if var ikComp = dummyAvatar.components[IKComponent.self],
+                                      var slv = ikComp.solvers.first {
+                                     if var hc = slv.constraints["head_target"] {
+                                         hc.target = Transform(rotation: headTarget.orientation, translation: headTarget.position)
+                                         slv.constraints["head_target"] = hc
+                                     }
+                                     if var lc = slv.constraints["left_hand_target"] {
+                                         lc.target = Transform(rotation: leftHandTarget.orientation, translation: leftHandTarget.position - SIMD3<Float>(0.0,1.0,0.0))
+                                         slv.constraints["left_hand_target"] = lc
+                                     }
+                                     if var lc = slv.constraints["left_forearm_target"] {
+                                         lc.target = Transform(rotation: leftHandTarget.orientation)
+                                         slv.constraints["left_forearm_target"] = lc
+                                     }
+                                     if var rc = slv.constraints["right_hand_target"] {
+                                         rc.target = Transform(rotation: rightHandTarget.orientation, translation: rightHandTarget.position - SIMD3<Float>(0.0,1.0,0.0))
+                                         slv.constraints["right_hand_target"] = rc
+                                     }
+                                     ikComp.solvers[0] = slv
+                                     dummyAvatar.components.set(ikComp)
+                                 }
+                                 // ------------------------
+                                 
                                  await MainActor.run {
                                      viewModel.loadingProgress = 1.0
                                      viewModel.isLoading = false
                                  }
+                                 
+                                 // Hide avatar when ready (to prevent tweaking until play)
+                                 dummyAvatar.isEnabled = false
                              }
                              
                             // 1️⃣1️⃣ Start real-time IK target update loop
@@ -394,8 +546,18 @@ struct HolosphereAnimationView: View {
                             // We need a way to react to viewModel changes inside this RealityView context.
                             // We can use a Timer that polls the viewModel.
                             
-                            Timer.scheduledTimer(withTimeInterval: 0.016, repeats: true) { _ in
+                            var lastRenderedFrame = -1
+                            _ = Timer.scheduledTimer(withTimeInterval: 0.016, repeats: true) { _ in
                                 let currentFrame = viewModel.currentFrame
+                                
+                                // Show avatar if playing
+                                if viewModel.isPlaying && !dummyAvatar.isEnabled {
+                                    dummyAvatar.isEnabled = true
+                                }
+                                
+                                // Prevent jitter when paused by skipping updates if frame hasn't changed
+                                if !viewModel.isPlaying && currentFrame == lastRenderedFrame { return }
+                                lastRenderedFrame = currentFrame
                                 
                                 // Sync Animation Controller (Fingers/Head baked animation)
                                 if let res = animResource {
@@ -410,7 +572,9 @@ struct HolosphereAnimationView: View {
                                 // Sync IK Targets (Arms/Head Position)
                                  if currentFrame < headFrames.count {
                                      let h = headFrames[currentFrame]
-                                     headTarget.position = h.position * scaleEstimate
+                                     // Apply offset to center the animation
+                                     let centeredPos = h.position // - headOffset (Reverted)
+                                     headTarget.position = centeredPos * scaleEstimate
                                  }
                                  
                                 // Update left hand target from CSV data
@@ -420,11 +584,16 @@ struct HolosphereAnimationView: View {
                                      currentFrame < leftWristSamples.count {
                                     let s = leftWristSamples[currentFrame]
                                     let s2 = leftForearmSamples[currentFrame]
-                                    var pos = s.position * scaleEstimate
-                                    var pos2 = s2.position * scaleEstimate
+                                    
+                                    // Apply offset to hands too
+                                    var pos = (s.position) * scaleEstimate // - headOffset (Reverted)
+                                    var pos2 = (s2.position) * scaleEstimate // - headOffset (Reverted)
+                                    
                                     if flipZ {
                                         pos.z = -pos.z
                                         pos.x = -pos.x
+                                        pos2.z = -pos2.z
+                                        pos2.x = -pos2.x
                                     }
                                     
                                     // Convert to world space relative to avatar
@@ -528,12 +697,39 @@ struct HolosphereAnimationView: View {
                 DragGesture()
                     .targetedToAnyEntity()
                     .onChanged { value in
-                        value.entity.position = value.convert(value.location3D, from: .local, to: value.entity.parent!)
+                        // If dragging the handle, move its parent (the whole menu group)
+                        if value.entity.name == "DragHandle", let parent = value.entity.parent {
+                            // Convert translation to parent's parent coordinate space
+                            // We need to move 'parent' based on the drag.
+                            // A simple way is to set the parent's position.
+                            // However, value.location3D is in the coordinate space of the entity's parent?
+                            // No, value.convert(value.location3D, from: .local, to: ...)
+                            
+                            // Let's use the translation directly for simplicity if possible, 
+                            // or just map the position.
+                            
+                            // Since 'value.entity' is the handle, and we want to move 'parent',
+                            // we can treat the drag as moving the parent.
+                            // But the handle is a child of the parent.
+                            
+                            // Easier approach: Calculate the new world position of the handle, 
+                            // then update the parent's position to maintain the offset.
+                            
+                            let newHandlePos = value.convert(value.location3D, from: .local, to: parent.parent!)
+                            // The handle is at [0, -0.5, 0] relative to parent.
+                            // So Parent Pos = Handle World Pos - Handle Local Pos
+                            parent.position = newHandlePos - [0, -0.5, 0]
+                            
+                        } else {
+                            // Standard behavior for Avatar (direct manipulation)
+                            value.entity.position = value.convert(value.location3D, from: .local, to: value.entity.parent!)
+                        }
                     }
             )
             
             // Removed separate Loading Overlay to prevent floor positioning
         }
+        .id(viewModel.selectedSession?.id ?? "default") // Force reload when session changes
         .onDisappear {
             viewModel.stopPlayback()
         }

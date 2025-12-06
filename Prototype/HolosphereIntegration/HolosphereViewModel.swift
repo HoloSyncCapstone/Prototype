@@ -30,13 +30,33 @@ enum VideoSelection: String, CaseIterable, Identifiable {
     var id: String { self.rawValue }
 }
 
+struct HolosphereSession: Identifiable, Hashable {
+    let id: String
+    let name: String
+    let headCSV: URL
+    let handCSV: URL
+    let handGlobalCSV: URL
+    let videoURL: URL
+}
+
 @MainActor
 class HolosphereViewModel: ObservableObject {
+    // MARK: - Session Management
+    @Published var sessions: [HolosphereSession] = []
+    @Published var selectedSession: HolosphereSession? {
+        didSet {
+            if let session = selectedSession, oldValue != session {
+                loadSession(session)
+            }
+        }
+    }
+    
     // MARK: - Animation State
     @Published var currentFrame: Int = 0
     @Published var totalFrames: Int = 100
     @Published var isPlaying: Bool = false
     @Published var fps: Double = 30.0
+    @Published var playbackSpeed: Double = 2.2
     
     // MARK: - Loading State
     @Published var isLoading: Bool = true
@@ -59,43 +79,119 @@ class HolosphereViewModel: ObservableObject {
     private var displayLink: CADisplayLink?
     private var lastTimestamp: TimeInterval = 0
     
+    init() {
+        scanForSessions()
+    }
+    
+    // MARK: - Session Logic
+    func scanForSessions() {
+        let fileManager = FileManager.default
+        // Updated path: Moved to project root (parent of Prototype folder)
+        let rootPath = "/Users/Patron/Documents/Code/Holosync Final/Prototype/Motion Recordings"
+        
+        var sessionsFound: [HolosphereSession] = []
+        
+        func findSessions(in directory: String) {
+            guard let contents = try? fileManager.contentsOfDirectory(atPath: directory) else { return }
+            
+            let trackingPath = (directory as NSString).appendingPathComponent("tracking")
+            let videoPath = (directory as NSString).appendingPathComponent("video")
+            
+            var isDir: ObjCBool = false
+            if fileManager.fileExists(atPath: trackingPath, isDirectory: &isDir) && isDir.boolValue {
+                // Check for specific files
+                let headPath = (trackingPath as NSString).appendingPathComponent("device_pose.csv")
+                let handsLocalPath = (trackingPath as NSString).appendingPathComponent("hand_pose_local.csv")
+                let handsWorldPath = (trackingPath as NSString).appendingPathComponent("hand_pose_world.csv")
+                let videoRightPath = (videoPath as NSString).appendingPathComponent("camera_right.mov")
+                
+                if fileManager.fileExists(atPath: headPath) &&
+                   fileManager.fileExists(atPath: handsLocalPath) &&
+                   fileManager.fileExists(atPath: handsWorldPath) &&
+                   fileManager.fileExists(atPath: videoRightPath) {
+                    
+                    let folderName = (directory as NSString).lastPathComponent
+                    let parentName = (directory as NSString).deletingLastPathComponent.components(separatedBy: "/").last ?? ""
+                    let name = "\(parentName) - \(folderName)"
+                    
+                    let session = HolosphereSession(
+                        id: directory,
+                        name: name,
+                        headCSV: URL(fileURLWithPath: headPath),
+                        handCSV: URL(fileURLWithPath: handsLocalPath),
+                        handGlobalCSV: URL(fileURLWithPath: handsWorldPath),
+                        videoURL: URL(fileURLWithPath: videoRightPath)
+                    )
+                    sessionsFound.append(session)
+                    return 
+                }
+            }
+            
+            for item in contents {
+                let itemPath = (directory as NSString).appendingPathComponent(item)
+                if fileManager.fileExists(atPath: itemPath, isDirectory: &isDir) && isDir.boolValue {
+                    findSessions(in: itemPath)
+                }
+            }
+        }
+        
+        findSessions(in: rootPath)
+        self.sessions = sessionsFound.sorted(by: { $0.name < $1.name })
+        
+        if selectedSession == nil, let first = sessions.first {
+            selectedSession = first
+        }
+    }
+    
+    func loadSession(_ session: HolosphereSession) {
+        stopPlayback()
+        isLoading = true
+        loadingStatus = "Loading \(session.name)..."
+        loadingProgress = 0.0
+        
+        rightPlayer.replaceCurrentItem(with: AVPlayerItem(url: session.videoURL))
+        currentFrame = 0
+    }
+    
     // MARK: - Setup
     func setup(totalFrames: Int, fps: Double = 30.0) {
         self.totalFrames = totalFrames
-        self.fps = fps
         self.currentFrame = 0
         self.isLoading = false
         
-        // Setup video players if files exist
-        setupVideoPlayers()
-    }
-    
-    private func setupVideoPlayers() {
-        // Look for videos in Data/video
-        // We assume standard names or pass them in. For now, hardcoded based on file_search.
-        if let leftURL = Bundle.main.url(forResource: "camera_left", withExtension: "mov", subdirectory: "Data/video") {
-            leftPlayer.replaceCurrentItem(with: AVPlayerItem(url: leftURL))
+        // Attempt to calculate FPS from video duration for better sync
+        if let item = rightPlayer.currentItem {
+            Task {
+                do {
+                    let duration = try await item.asset.load(.duration).seconds
+                    if duration > 0 {
+                        let calculatedFPS = Double(totalFrames) / duration
+                        print("🎥 Video Duration: \(duration)s, Total Frames: \(totalFrames)")
+                        print("🔄 Recalculated FPS: \(calculatedFPS) (was \(fps))")
+                        
+                        await MainActor.run {
+                            self.fps = calculatedFPS
+                        }
+                    } else {
+                        self.fps = fps
+                    }
+                } catch {
+                    print("⚠️ Failed to load video duration: \(error)")
+                    self.fps = fps
+                }
+            }
         } else {
-            // Fallback to absolute path for simulator if bundle fails (common in dev)
-             let path = "/Users/Patron/Documents/Code/Holosync Final/Prototype/Data/video/camera_left.mov"
-             let url = URL(fileURLWithPath: path)
-             leftPlayer.replaceCurrentItem(with: AVPlayerItem(url: url))
-        }
-        
-        if let rightURL = Bundle.main.url(forResource: "camera_right", withExtension: "mov", subdirectory: "Data/video") {
-            rightPlayer.replaceCurrentItem(with: AVPlayerItem(url: rightURL))
-        } else {
-             let path = "/Users/Patron/Documents/Code/Holosync Final/Prototype/Data/video/camera_right.mov"
-             let url = URL(fileURLWithPath: path)
-             rightPlayer.replaceCurrentItem(with: AVPlayerItem(url: url))
+            self.fps = fps
         }
         
         leftPlayer.actionAtItemEnd = .pause
         rightPlayer.actionAtItemEnd = .pause
-        
-        // Mute videos to avoid echo/noise
         leftPlayer.isMuted = true
         rightPlayer.isMuted = true
+    }
+    
+    private func setupVideoPlayers() {
+        // Deprecated
     }
     
     private func updateVideoVisibility() {
@@ -124,10 +220,10 @@ class HolosphereViewModel: ObservableObject {
     private func startPlayback() {
         lastTimestamp = CACurrentMediaTime()
         
-        // Start videos
+        // Start videos at normal speed
         if videoSelection != .none {
-            leftPlayer.play()
-            rightPlayer.play()
+            leftPlayer.rate = 1.0
+            rightPlayer.rate = 1.0
         }
         
         // Start DisplayLink
@@ -150,41 +246,26 @@ class HolosphereViewModel: ObservableObject {
     @objc private func updateLoop() {
         guard isPlaying else { return }
         
-        // If video is active and playing, sync to video time
-        if videoSelection != .none && (leftPlayer.rate > 0 || rightPlayer.rate > 0) {
-            // Use the active player's time
-            let player = (videoSelection == .right) ? rightPlayer : leftPlayer
-            let currentTime = player.currentTime().seconds
-            let newFrame = Int(currentTime * fps)
-            
-            if newFrame < totalFrames {
-                currentFrame = newFrame
+        // Time-based update for animation (decoupled from video time)
+        let now = CACurrentMediaTime()
+        let deltaTime = now - lastTimestamp
+        
+        // Apply playback speed to delta time for the animation
+        let adjustedDelta = deltaTime * playbackSpeed
+        
+        if adjustedDelta >= (1.0 / fps) {
+            let framesToAdd = Int(adjustedDelta * fps)
+            if currentFrame + framesToAdd < totalFrames {
+                currentFrame += framesToAdd
+                lastTimestamp = now // Reset only when we advance
             } else {
                 // Loop
                 currentFrame = 0
+                lastTimestamp = now
                 seek(to: 0)
-                leftPlayer.play()
-                rightPlayer.play()
-            }
-        } else {
-            // Time-based update without video
-            let now = CACurrentMediaTime()
-            let deltaTime = now - lastTimestamp
-            
-            // Accumulate time logic would be better, but for now simple delta
-            // If we just add frames based on delta, we might drift or be jerky.
-            // Better: track start time and calculate frame from (now - startTime).
-            // But we support pausing, so we need (now - resumeTime + pausedDuration).
-            
-            // Simple approach for now:
-            if deltaTime >= (1.0 / fps) {
-                let framesToAdd = Int(deltaTime * fps)
-                if currentFrame + framesToAdd < totalFrames {
-                    currentFrame += framesToAdd
-                    lastTimestamp = now // Reset only when we advance
-                } else {
-                    currentFrame = 0
-                    lastTimestamp = now
+                if videoSelection != .none {
+                    leftPlayer.rate = 1.0
+                    rightPlayer.rate = 1.0
                 }
             }
         }
