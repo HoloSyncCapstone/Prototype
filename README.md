@@ -1,49 +1,104 @@
-# Prototype App - Setup Instructions
+# Holosync Final - Prototype
 
-## 🚀 Getting Started
+## Repository Link
+[Insert Link to your repository here]
 
-This project relies on a large dataset of motion recordings. While these files are tracked in Git LFS (Large File Storage), you may need to download them manually if you encounter missing file errors or "No Session" messages.
+## Setup Instructions
 
-### 1. Check for Motion Data
-After cloning the repository, check if the `Motion Recordings` folder exists in the root directory and contains data (not just empty folders).
+Setting up the project is straightforward. All required CSV datasets, video files, and 3D avatar resources are already included in the repository. No external tooling or preprocessing is required.
 
-If the folder is missing or empty, download the dataset manually:
-**[Download Motion Recordings from Google Drive](https://drive.google.com/drive/u/1/folders/1_T5hksgCvnLerVvx_qC3QOqoJetMqo0u)**
+### Requirements
+* macOS with Xcode 16 or newer
+* visionOS SDK installed
+* Swift 5.9 or later
+* Ability to run the visionOS Simulator (Vision Pro)
 
-### 2. Place the Data Folder
-Unzip the downloaded file and place the `Motion Recordings` folder in the **root directory** of the project (next to `Prototype.xcodeproj`).
+### Steps to Run the Project
+1. **Clone the repository**
+2. **Open the project in Xcode**
+3. **Ensure bundle resources are correctly assigned**
+    * In Xcode, select all CSV files, the Motion Recordings folder, video files, and the `.usdz` avatar models.
+    * Under File Inspector → Target Membership, confirm that the app target is checked.
+    * This ensures the simulator can load the CSV and video data at runtime.
+4. **Build and run**
+    * Choose visionOS Simulator as your run target.
+    * Press Run.
+5. **Select a session**
+    * The application automatically scans the included datasets.
+    * Choose from the detected sessions in the UI and begin playback.
 
-**Directory Structure:**
-```
-Prototype/
-├── Prototype.xcodeproj
-├── Prototype/              <-- Source code folder
-├── Motion Recordings/      <-- PLACE FOLDER HERE
-│   ├── Motions 1/
-│   ├── Motions 2/
-│   └── ...
-└── ...
-```
+### Notes
+* The project does not capture live Vision Pro motion data. All included motion files are pre-recorded and packaged inside the repository.
+* Because of this, setup focuses entirely on running the playback system—no hardware, APIs, or external services are required.
 
-### 3. Troubleshooting "No Session" Error
-If the app launches but shows "No Session" or fails to load data:
+## Overview of How the Code Works
 
-**Option A: Check File Location**
-Ensure the folder is named exactly `Motion Recordings` (case-sensitive) and is located next to the `.xcodeproj` file.
+The main functionality is split across two primary files:
 
-**Option B: Add to Xcode (Recommended for Device Builds)**
-If you are building for a real device (Vision Pro) instead of the Simulator, the app cannot access files on your Mac's hard drive. You must bundle the data with the app:
-1. Open the project in Xcode.
-2. Drag the `Motion Recordings` folder into the Xcode Project Navigator (left sidebar).
-3. In the dialog that appears:
-   - Select **"Create folder references"** (Blue folder icon).
-   - **Do NOT** select "Create groups" (Yellow folder icon).
-   - Ensure the "Prototype" target is checked.
-4. Build and run.
+### 1. HolosphereAnimationView.swift
+This file contains the core real-time animation system and is responsible for:
+* Loading the avatar model (`model_fV.usdz`)
+* Attaching inverse kinematics solvers for wrists, arms, and head stabilization
+* Loading CSV tracking data:
+    * `device_pose.csv` for head motion
+    * `hand_pose_local.csv` for finger joint rotations
+    * `hand_pose_world.csv` for global wrist transforms
+* Parsing each CSV into a per-frame dataset
+* Rebuilding finger animation using RealityKit’s `SampledAnimation`
+* Updating IK target entities and applying frame-specific transforms
+* Running a timed playback loop using a manually controlled Timer
+* Synchronizing the animation with session video playback
+* Handling scrubbing, looping, and playback speed adjustments
 
-### 4. Running the App
-1. Open `Prototype.xcodeproj` in Xcode.
-2. Select the **Prototype** scheme.
-3. Choose a destination (Apple Vision Pro Simulator or Device).
-4. Press **Cmd + R** to run.
-5. In the main menu, select **"Motion Replay"** to view the animations.
+Significant sections of commented-out code remain in this file. These represent experimentation, alternative approaches, coordinate-system debugging, and IK strategies. They were intentionally preserved for testing and future extension.
+
+### 2. HolosphereViewModel.swift
+The ViewModel oversees:
+* Automatically scanning the included resource bundle for available sessions
+* Loading and attaching CSV data to the animation system
+* Managing user playback state such as:
+    * current frame
+    * total frames
+    * frames per second
+    * playback speed
+    * play/pause/scrubbing
+* Synchronizing the avatar animation to the associated session video
+* Providing a unified loading state and progress reporting for the UI
+
+The ViewModel also ensures that animation loading does not begin until a valid session has been detected, preventing race conditions between the UI and file scanning.
+
+### 3. FullbodyimmersiveView.swift
+This file contains previous versions of the animation and playback system. It includes experimental implementations of:
+* Full-body IK attempts
+* Environment-anchored immersive scenes
+* Alternative skeletal animation pipelines
+
+The file remains in the repository for reference and documentation but is not used in the final implementation.
+
+### 4. SubtitleView.swift
+This file implements a standalone view for rendering timed transcript data over the video playback timeline. It is ready for integration but currently not connected to the main playback pipeline.
+
+## What Works & What Doesn’t
+
+### What Works
+* Automatic detection and loading of session folders and their associated tracking and video data
+* Parsing CSV motion data for head poses, hand local rotations, and wrist global transforms
+* Reconstructing avatar motion using skeletal animation and inverse kinematics
+* Synchronized playback of avatar animation and session video
+* Real-time scrubbing and adjustable playback speeds
+* Stable initialization sequence that waits for the session to load before building the animation
+* Successful finger articulation, wrist driving, and upper-body IK behavior
+
+### What Does Not Work
+* Full-body IK for lower body and spine remains incomplete
+* Scene placement and anchoring are simplified; real environmental alignment is not implemented
+* Hot-swapping between sessions without rebuilding the entire animation layer remains unsupported
+* Fine-tuning of coordinate system offsets and scale factors is still required
+
+## Future Work
+
+If the project were to be continued, the next steps would include:
+1. Completing full-body inverse kinematics (legs, hips, spine)
+2. Supporting seamless switching between multiple captured sessions
+3. Improving error reporting and loading feedback during session scanning
+4. Supporting real-world anchoring, scaling, and environment-aware presentation
