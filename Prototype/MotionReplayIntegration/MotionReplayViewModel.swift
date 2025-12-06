@@ -93,101 +93,86 @@ class MotionReplayViewModel: ObservableObject {
     func scanForSessions() {
         let fileManager = FileManager.default
         
-        // Dynamic path resolution
-        var rootPath: String?
+        print("🔍 --- DEBUG: Scanning for Data Session ---")
+        
+        // Dynamic path resolution for "Data" folder
+        var dataPath: String?
         
         // 1. Try App Bundle (for deployed app)
-        if let bundlePath = Bundle.main.path(forResource: "Motion Recordings", ofType: nil) {
-            rootPath = bundlePath
-            print("📂 Found Motion Recordings in Bundle: \(bundlePath)")
-        } 
+        if let bundlePath = Bundle.main.path(forResource: "Data", ofType: nil) {
+            dataPath = bundlePath
+            print("✅ Found Data folder in Bundle: \(bundlePath)")
+        } else {
+            print("⚠️ 'Data' folder not found via Bundle.main.path(forResource:...)")
+        }
+        
         // 2. Try Source Directory (for Debugging in Simulator/Xcode)
-        else {
+        if dataPath == nil {
             // #file is .../Prototype/Prototype/HolosphereIntegration/HolosphereViewModel.swift
             let currentFileURL = URL(fileURLWithPath: #file)
             let integrationDir = currentFileURL.deletingLastPathComponent() // .../HolosphereIntegration
             let innerPrototypeDir = integrationDir.deletingLastPathComponent() // .../Prototype (inner)
             let outerPrototypeDir = innerPrototypeDir.deletingLastPathComponent() // .../Prototype (outer)
             
-            // Check inner Prototype folder
-            let path1 = innerPrototypeDir.appendingPathComponent("Motion Recordings").path
-            // Check outer Prototype folder
-            let path2 = outerPrototypeDir.appendingPathComponent("Motion Recordings").path
+            // Check inner Prototype/Data
+            let path1 = innerPrototypeDir.appendingPathComponent("Data").path
+            // Check outer Prototype/Data
+            let path2 = outerPrototypeDir.appendingPathComponent("Data").path
             
             if fileManager.fileExists(atPath: path1) {
-                rootPath = path1
-                print("📂 Found Motion Recordings in Inner Source: \(path1)")
+                dataPath = path1
+                print("📂 Found Data in Inner Source: \(path1)")
             } else if fileManager.fileExists(atPath: path2) {
-                rootPath = path2
-                print("📂 Found Motion Recordings in Outer Source: \(path2)")
+                dataPath = path2
+                print("📂 Found Data in Outer Source: \(path2)")
             } else {
-                // 3. Fallback to hardcoded (just in case, but likely to fail on other machines)
-                // rootPath = "/Users/Patron/Documents/Code/Holosync Final/Prototype/Motion Recordings"
-                print("❌ Could not find Motion Recordings folder in Bundle or Source paths.")
-                print("   Checked: \(path1)")
-                print("   Checked: \(path2)")
+                print("❌ Could not find Data folder in Bundle or Source paths.")
             }
         }
         
-        guard let directory = rootPath else { return }
+        guard let directory = dataPath else { return }
         
-        var sessionsFound: [MotionSession] = []
+        // Construct paths for the single session in Data
+        let trackingPath = (directory as NSString).appendingPathComponent("tracking")
+        let videoPath = (directory as NSString).appendingPathComponent("video")
+        let transcriptsPath = (directory as NSString).appendingPathComponent("transcripts")
         
-        func findSessions(in directory: String) {
-            guard let contents = try? fileManager.contentsOfDirectory(atPath: directory) else { return }
+        let headPath = (trackingPath as NSString).appendingPathComponent("device_pose.csv")
+        let handsLocalPath = (trackingPath as NSString).appendingPathComponent("hand_pose_local.csv")
+        let handsWorldPath = (trackingPath as NSString).appendingPathComponent("hand_pose_world.csv")
+        let videoRightPath = (videoPath as NSString).appendingPathComponent("camera_right.mov")
+        let transcriptPath = (transcriptsPath as NSString).appendingPathComponent("timecoded_transcript.json")
+        
+        // Verify essential files exist
+        if fileManager.fileExists(atPath: headPath) &&
+           fileManager.fileExists(atPath: handsLocalPath) &&
+           fileManager.fileExists(atPath: handsWorldPath) &&
+           fileManager.fileExists(atPath: videoRightPath) {
             
-            let trackingPath = (directory as NSString).appendingPathComponent("tracking")
-            let videoPath = (directory as NSString).appendingPathComponent("video")
+            let transcriptURL = fileManager.fileExists(atPath: transcriptPath) ? URL(fileURLWithPath: transcriptPath) : nil
             
-            var isDir: ObjCBool = false
-            if fileManager.fileExists(atPath: trackingPath, isDirectory: &isDir) && isDir.boolValue {
-                // Check for specific files
-                let headPath = (trackingPath as NSString).appendingPathComponent("device_pose.csv")
-                let handsLocalPath = (trackingPath as NSString).appendingPathComponent("hand_pose_local.csv")
-                let handsWorldPath = (trackingPath as NSString).appendingPathComponent("hand_pose_world.csv")
-                let videoRightPath = (videoPath as NSString).appendingPathComponent("camera_right.mov")
-                
-                // Check for transcript (optional)
-                // Look in transcripts/timecoded_transcript.json
-                let transcriptPath = (directory as NSString).appendingPathComponent("transcripts/timecoded_transcript.json")
-                let transcriptURL = fileManager.fileExists(atPath: transcriptPath) ? URL(fileURLWithPath: transcriptPath) : nil
-                
-                if fileManager.fileExists(atPath: headPath) &&
-                   fileManager.fileExists(atPath: handsLocalPath) &&
-                   fileManager.fileExists(atPath: handsWorldPath) &&
-                   fileManager.fileExists(atPath: videoRightPath) {
-                    
-                    let folderName = (directory as NSString).lastPathComponent
-                    let parentName = (directory as NSString).deletingLastPathComponent.components(separatedBy: "/").last ?? ""
-                    let name = "\(parentName) - \(folderName)"
-                    
-                    let session = MotionSession(
-                        id: directory,
-                        name: name,
-                        headCSV: URL(fileURLWithPath: headPath),
-                        handCSV: URL(fileURLWithPath: handsLocalPath),
-                        handGlobalCSV: URL(fileURLWithPath: handsWorldPath),
-                        videoURL: URL(fileURLWithPath: videoRightPath),
-                        transcriptURL: transcriptURL
-                    )
-                    sessionsFound.append(session)
-                    return 
-                }
+            let session = MotionSession(
+                id: directory,
+                name: "Default Session (Data)",
+                headCSV: URL(fileURLWithPath: headPath),
+                handCSV: URL(fileURLWithPath: handsLocalPath),
+                handGlobalCSV: URL(fileURLWithPath: handsWorldPath),
+                videoURL: URL(fileURLWithPath: videoRightPath),
+                transcriptURL: transcriptURL
+            )
+            
+            print("✅ Created session from Data folder")
+            
+            DispatchQueue.main.async {
+                self.sessions = [session]
+                self.selectedSession = session // Auto-select
             }
-            
-            for item in contents {
-                let itemPath = (directory as NSString).appendingPathComponent(item)
-                if fileManager.fileExists(atPath: itemPath, isDirectory: &isDir) && isDir.boolValue {
-                    findSessions(in: itemPath)
-                }
-            }
-        }
-        
-        findSessions(in: directory)
-        self.sessions = sessionsFound.sorted(by: { $0.name < $1.name })
-        
-        if selectedSession == nil, let first = sessions.first {
-            selectedSession = first
+        } else {
+            print("❌ Missing required files in Data folder:")
+            if !fileManager.fileExists(atPath: headPath) { print("   - Missing: device_pose.csv") }
+            if !fileManager.fileExists(atPath: handsLocalPath) { print("   - Missing: hand_pose_local.csv") }
+            if !fileManager.fileExists(atPath: handsWorldPath) { print("   - Missing: hand_pose_world.csv") }
+            if !fileManager.fileExists(atPath: videoRightPath) { print("   - Missing: camera_right.mov") }
         }
     }
     

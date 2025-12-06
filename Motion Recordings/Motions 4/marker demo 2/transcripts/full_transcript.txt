@@ -1,1 +1,0 @@
-Testing one, two, testing one two.  You're currently looking at transcribed audio from a recording of me flipping around a marker right now.  So you can see the finger tracking is currently working, and we can play some marker down.  We can extend our hands out, flip them around, scrunch our fist, and yeah, that's basically it.  Thanks for watching.
