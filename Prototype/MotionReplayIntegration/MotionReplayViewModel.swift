@@ -247,7 +247,15 @@ class MotionReplayViewModel: ObservableObject {
         leftPlayer.actionAtItemEnd = .pause
         rightPlayer.actionAtItemEnd = .pause
         leftPlayer.isMuted = true
-        rightPlayer.isMuted = true
+        rightPlayer.isMuted = false // Enable audio for the right player (main view)
+        
+        // Configure audio session for playback
+        do {
+            try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
+            try AVAudioSession.sharedInstance().setActive(true)
+        } catch {
+            print("⚠️ Failed to configure audio session: \(error)")
+        }
     }
     
     private func setupVideoPlayers() {
