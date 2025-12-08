@@ -44,11 +44,6 @@
 			path = Prototype;
 			sourceTree = "<group>";
 		};
-		3188D9F32EE4F09300E078C6 /* Data */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = Data;
-			sourceTree = "<group>";
-		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -66,7 +61,6 @@
 		3186A5E82E8B45EE00D5CE57 = {
 			isa = PBXGroup;
 			children = (
-				3188D9F32EE4F09300E078C6 /* Data */,
 				3188DA002EE4F28600E078C6 /* Data */,
 				31B6E4662EB9E15E00F6580B /* object_pose_data.csv */,
 				31B6E4682EB9E15F00F6580B /* complete_skeleton_data.csv */,
@@ -111,7 +105,6 @@
 			);
 			fileSystemSynchronizedGroups = (
 				3186A5F32E8B45EE00D5CE57 /* Prototype */,
-				3188D9F32EE4F09300E078C6 /* Data */,
 			);
 			name = Prototype;
 			packageProductDependencies = (
