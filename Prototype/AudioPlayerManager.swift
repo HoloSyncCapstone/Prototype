@@ -80,6 +80,45 @@ class AudioPlayerManager: NSObject, ObservableObject {
     
     // MARK: - Setup
     
+    /// Load audio file from URL
+    func loadAudio(url: URL) {
+        do {
+            print("🔍 Loading audio from URL: \(url.path)")
+            
+            // Check file size
+            let fileSize = try FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int ?? 0
+            print("📊 Audio file size: \(fileSize / 1024) KB")
+            
+            // Check if file needs header fix
+            var workingURL = url
+            if let fixedURL = fixWAVHeader(at: url) {
+                workingURL = fixedURL
+                print("🔄 Using fixed WAV file")
+            }
+            
+            // Configure audio session for spatial audio
+            let audioSession = AVAudioSession.sharedInstance()
+            try audioSession.setCategory(.playback, mode: .default, options: [.mixWithOthers])
+            try audioSession.setActive(true)
+            
+            audioPlayer = try AVAudioPlayer(contentsOf: workingURL)
+            audioPlayer?.prepareToPlay()
+            
+            if let player = audioPlayer {
+                duration = player.duration
+                isLoaded = true
+                
+                let frames = Int(player.duration * 44100) // Assuming 44.1kHz
+                print("📏 Audio file: \(frames) frames at \(player.format.sampleRate) Hz")
+                print("⏱️  Calculated duration: \(String(format: "%.2f", player.duration))s")
+                print("✅ Audio loaded: \(url.lastPathComponent), duration: \(String(format: "%.2f", duration))s")
+            }
+        } catch {
+            print("❌ Failed to load audio: \(error)")
+            isLoaded = false
+        }
+    }
+    
     /// Load audio file from bundle
     func loadAudio(filename: String, subdirectory: String = "Data/audio") {
         // Try multiple approaches to find the file
