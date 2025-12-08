@@ -1,7 +1,7 @@
 # Holosync Final - Prototype
 
 ## Repository Link
-[Insert Link to your repository here]
+https://github.com/HoloSyncCapstone/Prototype/edit/main/README.md
 
 ## Setup Instructions
 
